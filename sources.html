@@ -32,8 +32,14 @@
     <li><a href="https://www.flychicago.com/ohare/servicesamenities/accessibility/Pages/Terminal-Accessibility.aspx">Terminal accessibility and amenities</a>: all-gender restrooms at C19, nursing rooms, service animal relief areas.</li>
     <li><a href="https://www.flychicago.com/ohare/servicesamenities/services/pages/tbt.aspx">Transportation between terminals</a>: Terminal Transfer Bus stops and hours, the ATS rule, and secure walkways between Terminals 1, 2 and 3.</li>
   </ul>
+  <h2>Open map data</h2>
+  <ul>
+    <li>Airport boundary, terminal and concourse building outlines, and runways: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, available under the Open Database License. Retrieved November 4, 2026 through the Overpass API and simplified for the phone map (<code>data/outline.json</code>).</li>
+  </ul>
+  <h2>Flight information</h2>
+  <p>Flight lookups use the <a href="https://aviationstack.com/">Aviationstack</a> real-time flights API (free plan, non-commercial use), called through a small Cloudflare Worker so the API key is not published. Gates and times come from airlines through Aviationstack and can be missing or late: always check the airport's departure screens. Until a Worker is set up, the site shows clearly labeled sample flights.</p>
   <h2>What is original</h2>
-  <p>The map drawing is an original schematic. Concourses are simplified bands drawn along verified gate lines, not traced from airport drawings. The walking network for Terminal 1 is a small hand-built set of corridor lines; its distances were compared with the official map's routes and agree within about 3%.</p>
+  <p>The gate positions, walking network, labels and route drawing are original work; building outlines come from OpenStreetMap. Gates were placed from the official map, not traced from airport drawings. The walking network for Terminal 1 is a small hand-built set of corridor lines; its distances were compared with the official map's routes and agree within about 3%.</p>
   <h2>Known differences between sources</h2>
   <p>The Terminal 1 PDF says to transfer to Terminal 5 at Gate B1. The transportation page says the Gate B1 stop is temporarily closed for construction and the bus boards at Gate C18B. This prototype follows the transportation page.</p>
   <h2>Coverage</h2>

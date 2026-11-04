@@ -10,10 +10,10 @@
     "transfer": {"name": "Transportation between terminals", "url": "https://www.flychicago.com/ohare/servicesamenities/services/pages/tbt.aspx", "checked": "2026-11-04"}
   },
   "terminals": {
-    "1": {"name": "Terminal 1", "concourses": ["B", "C"], "status": "routes", "label": [41.9808, -87.9085]},
-    "2": {"name": "Terminal 2", "concourses": ["E", "F"], "status": "preview", "label": [41.9737, -87.9076]},
-    "3": {"name": "Terminal 3", "concourses": ["G", "H", "K", "L"], "status": "preview", "label": [41.9726, -87.9017]},
-    "5": {"name": "Terminal 5", "concourses": ["M"], "status": "preview", "label": [41.9757, -87.8868]}
+    "1": {"name": "Terminal 1", "concourses": ["B", "C"], "status": "routes", "label": [41.9803, -87.9022]},
+    "2": {"name": "Terminal 2", "concourses": ["E", "F"], "status": "preview", "label": [41.9721, -87.9078]},
+    "3": {"name": "Terminal 3", "concourses": ["G", "H", "K", "L"], "status": "preview", "label": [41.9718, -87.8992]},
+    "5": {"name": "Terminal 5", "concourses": ["M"], "status": "preview", "label": [41.9724, -87.8870]}
   },
   "levels": {
     "t1-upper": {"terminal": "1", "name": "Upper Level", "detail": "Gates and check-in", "order": 2},

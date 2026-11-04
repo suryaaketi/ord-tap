@@ -44,6 +44,26 @@
       </section>
 
       <section class="place-browser" id="places">
+        <!-- A short series of questions: why you are here, then your flight number, then your gate. -->
+        <div class="flight-finder" id="flight-finder" aria-live="polite">
+          <div class="ff-step" id="ff-trip">
+            <div class="ff-head"><span class="ff-count">Question 1 of 2</span><button class="ff-skip" type="button" data-trip="browse">Skip</button></div>
+            <h2 class="ff-question">Are you catching a flight?</h2>
+            <div class="ff-choices">
+              <button class="ff-choice" type="button" data-trip="depart"><span data-icon="plane"></span><span><b>Departing</b><small>I'm starting my trip at O'Hare</small></span></button>
+              <button class="ff-choice" type="button" data-trip="connect"><span data-icon="connect"></span><span><b>Connecting</b><small>I just landed and have another flight</small></span></button>
+              <button class="ff-choice" type="button" data-trip="browse"><span data-icon="search"></span><span><b>Just looking</b><small>Restrooms, food, or a gate I know</small></span></button>
+            </div>
+          </div>
+          <form class="ff-step" id="ff-number" hidden novalidate>
+            <div class="ff-head"><span class="ff-count">Question 2 of 2</span><button class="ff-skip" type="button" id="ff-back">Back</button></div>
+            <label class="ff-question" for="flight-input" id="ff-number-label">What's your flight number?</label>
+            <div class="flight-field"><span data-icon="plane"></span><input id="flight-input" name="flight" placeholder="UA 1234" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go" aria-describedby="ff-help"><button class="primary-button" type="submit" id="ff-submit">Find gate</button></div>
+            <small class="ff-help" id="ff-help">On your boarding pass or airline app: two characters for the airline, then the number.</small>
+          </form>
+          <div class="ff-step" id="ff-result" hidden></div>
+          <button class="ff-reopen" id="ff-reopen" type="button" hidden><span data-icon="plane"></span>Find my gate by flight number</button>
+        </div>
         <div class="search-field"><span data-icon="search"></span><input type="search" id="search" placeholder="Gate (like C17), food, restroom" aria-label="Search gates and amenities" enterkeyhint="search" autocomplete="off" autocapitalize="characters"><kbd aria-hidden="true">/</kbd></div>
         <div class="categories" role="group" aria-label="Filter destinations">
           <button class="category active" data-category="all" aria-pressed="true" type="button">All</button>
@@ -60,6 +80,7 @@
         <button class="back-button" id="back" type="button"><span data-icon="back"></span>All places</button>
         <div id="route-category" class="route-category"></div>
         <h2 id="route-title"></h2>
+        <div class="flight-banner" id="flight-banner" hidden></div>
         <div class="facts" id="facts"></div>
         <div class="notice" id="notice" hidden></div>
         <div class="route-summary" id="route-summary" hidden><div><strong id="route-minutes"></strong><span>walk</span></div><div><strong id="route-distance"></strong><span id="route-levels">indoor route</span></div><span class="walking-badge" data-icon="walk"></span></div>
@@ -70,7 +91,7 @@
         <div class="route-footnote"><span data-icon="info"></span><p id="route-footnote">Schematic route along mapped passenger corridors. Times assume 75 m a minute. Follow airport signs; gates, closures and construction change.</p></div>
       </section>
 
-      <footer class="finder-footer"><span>ENGR 408 student prototype. Not an official Chicago Department of Aviation service.</span><small>Original schematic. Locations checked against the official O'Hare interactive map. <a href="sources.html">Sources</a></small></footer>
+      <footer class="finder-footer"><span>ENGR 408 student prototype. Not an official Chicago Department of Aviation service.</span><small>Building outlines © OpenStreetMap contributors. Gates checked against the official O'Hare interactive map. Flight data, when set up, from Aviationstack: check the airport screens. <a href="sources.html">Sources</a></small></footer>
     </aside>
 
     <section class="map-panel" aria-label="O'Hare terminal map">

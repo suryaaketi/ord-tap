@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>ORD Tap · Sources and credits</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <style>
+    :root{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;--bg:#f2f2f7;--surface:#fff;--label:#000;--label-2:rgba(60,60,67,.62);--blue:#007aff}
+    @media (prefers-color-scheme:dark){:root{--bg:#000;--surface:#1c1c1e;--label:#fff;--label-2:rgba(235,235,245,.62);--blue:#0a84ff}}
+    body{margin:0;background:var(--bg);color:var(--label);font:17px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+    main{max-width:680px;margin:0 auto;padding:28px 16px 48px}
+    h1{font-size:34px;letter-spacing:-.025em;margin:8px 0 6px}
+    h2{font-size:20px;margin:28px 0 8px}
+    p,li{color:var(--label-2)}
+    ul{background:var(--surface);border-radius:12px;padding:6px 16px 6px 34px}
+    li{padding:8px 0}
+    a{color:var(--blue)}
+    strong{color:var(--label)}
+  </style>
+</head>
+<body>
+<main>
+  <a href="./">‹ Back to the map</a>
+  <h1>Sources and credits</h1>
+  <p>ORD Tap is an ENGR 408 student prototype. It is not an official Chicago Department of Aviation service, and it is not affiliated with O'Hare International Airport.</p>
+  <h2>Official references, checked November 4, 2026</h2>
+  <ul>
+    <li><a href="https://maps.ord.flychicago.com/">O'Hare interactive map</a> (Chicago Department of Aviation, built on Atrius). Used to verify gate labels, concourse shapes, amenity locations, levels, the B/C pedestrian tunnel and its escalators and elevators, and walking distances for Terminal 1.</li>
+    <li><a href="https://www.flychicago.com/ohare/map/Pages/printablemaps.aspx">Official printable terminal maps</a>, including the <a href="https://www.flychicago.com/SiteCollectionDocuments/O%27Hare/ArchivedPDFs/Map/T1.pdf">Terminal 1 map</a> (Upper Level, Lower Level, Pedestrian Tunnel Level).</li>
+    <li><a href="https://www.flychicago.com/ohare/servicesamenities/accessibility/Pages/Terminal-Accessibility.aspx">Terminal accessibility and amenities</a>: all-gender restrooms at C19, nursing rooms, service animal relief areas.</li>
+    <li><a href="https://www.flychicago.com/ohare/servicesamenities/services/pages/tbt.aspx">Transportation between terminals</a>: Terminal Transfer Bus stops and hours, the ATS rule, and secure walkways between Terminals 1, 2 and 3.</li>
+  </ul>
+  <h2>What is original</h2>
+  <p>The map drawing is an original schematic. Concourses are simplified bands drawn along verified gate lines, not traced from airport drawings. The walking network for Terminal 1 is a small hand-built set of corridor lines; its distances were compared with the official map's routes and agree within about 3%.</p>
+  <h2>Known differences between sources</h2>
+  <p>The Terminal 1 PDF says to transfer to Terminal 5 at Gate B1. The transportation page says the Gate B1 stop is temporarily closed for construction and the bus boards at Gate C18B. This prototype follows the transportation page.</p>
+  <h2>Coverage</h2>
+  <p><strong>Terminal 1</strong> (Concourses B and C, the B/C tunnel): routes. <strong>Terminals 2, 3 and 5</strong>: map preview only. Their gates and amenities are placed from the official map, but walking routes have not been verified yet.</p>
+  <h2>Software</h2>
+  <p><a href="https://leafletjs.com/">Leaflet</a> (BSD 2-Clause) and <a href="https://github.com/kazuhikoarase/qrcode-generator">qrcode-generator</a> by Kazuhiko Arase (MIT). Licenses are in the <code>vendor</code> folder.</p>
+</main>
+</body>
+</html>

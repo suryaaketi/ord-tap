@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Tap an NFC sign or scan its QR code at Chicago O'Hare to see where you are and walk to your gate, a restroom or food. ENGR 408 student prototype.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>ORD Tap · O'Hare wayfinding prototype</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/leaflet/leaflet.js" defer></script>
+  <script src="ord/app.js" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#places">Skip to destinations</a>
+  <main class="app-layout">
+    <!-- On phones this panel is a bottom sheet over the map; on wider screens it floats beside it. -->
+    <aside class="finder" id="sheet" aria-label="Find a gate or amenity">
+      <div class="sheet-grab" id="sheet-grab">
+        <span class="sheet-handle" aria-hidden="true"></span>
+        <header class="site-header">
+          <a class="brand" href="./" aria-label="ORD Tap home">
+            <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 28S6 20 6 12a10 10 0 0 1 20 0c0 8-10 16-10 16Z"/><circle cx="16" cy="12" r="4"/></svg></span>
+            <span><strong>ORD Tap</strong><small>Chicago O'Hare · student prototype</small></span>
+          </a>
+          <a class="setup-button" href="sign.html" aria-label="Print NFC and QR signs" title="Print NFC and QR signs"><span data-icon="nfc"></span></a>
+        </header>
+      </div>
+
+      <section class="finder-top">
+        <div class="origin-card here-card" id="here-card">
+          <div class="origin-icon here-icon" data-icon="here"></div>
+          <div class="origin-field">
+            <label for="start-select" id="origin-label">You are here</label>
+            <select id="start-select" aria-describedby="origin-context"></select>
+            <span id="origin-context">Choose the sign you are standing near. No location access needed.</span>
+          </div>
+        </div>
+        <p class="inline-message" id="message" role="status" hidden></p>
+      </section>
+
+      <section class="place-browser" id="places">
+        <div class="search-field"><span data-icon="search"></span><input type="search" id="search" placeholder="Gate (like C17), food, restroom" aria-label="Search gates and amenities" enterkeyhint="search" autocomplete="off" autocapitalize="characters"><kbd aria-hidden="true">/</kbd></div>
+        <div class="categories" role="group" aria-label="Filter destinations">
+          <button class="category active" data-category="all" aria-pressed="true" type="button">All</button>
+          <button class="category" data-category="gate" aria-pressed="false" type="button">Gates</button>
+          <button class="category" data-category="restroom" aria-pressed="false" type="button">Restrooms</button>
+          <button class="category" data-category="food" aria-pressed="false" type="button">Food</button>
+          <button class="category" data-category="amenity" aria-pressed="false" type="button">More</button>
+        </div>
+        <div class="section-label"><span id="list-label">Nearby</span><span id="place-count"></span></div>
+        <div id="place-list" class="place-list" aria-live="polite"><p class="loading">Loading O'Hare…</p></div>
+      </section>
+
+      <section class="route-view" id="route-view" hidden>
+        <button class="back-button" id="back" type="button"><span data-icon="back"></span>All places</button>
+        <div id="route-category" class="route-category"></div>
+        <h2 id="route-title"></h2>
+        <div class="facts" id="facts"></div>
+        <div class="notice" id="notice" hidden></div>
+        <div class="route-summary" id="route-summary" hidden><div><strong id="route-minutes"></strong><span>walk</span></div><div><strong id="route-distance"></strong><span id="route-levels">indoor route</span></div><span class="walking-badge" data-icon="walk"></span></div>
+        <label class="stairs-toggle" id="steps-toggle" hidden><span>Avoid escalators</span><input type="checkbox" id="avoid-steps" role="switch"></label>
+        <div class="route-actions"><button id="share" class="primary-button" type="button"><span data-icon="share"></span>Share route</button><a id="official" class="secondary-button link-button" href="https://maps.ord.flychicago.com/" target="_blank" rel="noopener">Official map</a></div>
+        <div class="steps-heading" id="steps-heading"><h3>Directions</h3><span id="step-count"></span></div>
+        <ol id="route-steps" class="route-steps directions"></ol>
+        <div class="route-footnote"><span data-icon="info"></span><p id="route-footnote">Schematic route along mapped passenger corridors. Times assume 75 m a minute. Follow airport signs; gates, closures and construction change.</p></div>
+      </section>
+
+      <footer class="finder-footer"><span>ENGR 408 student prototype. Not an official Chicago Department of Aviation service.</span><small>Original schematic. Locations checked against the official O'Hare interactive map. <a href="sources.html">Sources</a></small></footer>
+    </aside>
+
+    <section class="map-panel" aria-label="O'Hare terminal map">
+      <div id="map" aria-label="Schematic map of O'Hare terminals"></div>
+      <nav class="terminal-bar" aria-label="Jump to a terminal">
+        <button type="button" data-view="all">Airport</button>
+        <button type="button" data-view="1">T1</button>
+        <button type="button" data-view="2">T2</button>
+        <button type="button" data-view="3">T3</button>
+        <button type="button" data-view="5">T5</button>
+      </nav>
+      <div class="map-controls"><button class="fit-map" id="fit-map" type="button" aria-label="Show the whole route" title="Fit map"><span data-icon="expand"></span></button></div>
+      <div class="map-legend ord-legend"><span class="legend-start"></span>You are here<span class="legend-destination"></span>Destination<span class="legend-route"></span>Route<span class="legend-tunnel"></span>Tunnel level</div>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <noscript><div class="noscript">Enable JavaScript to use the O'Hare wayfinding prototype.</div></noscript>
+</body>
+</html>

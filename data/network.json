@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "checked": "2026-11-04",
+  "note": "Original schematic drawn for an ENGR 408 student prototype. Corridor lines, gate positions and level changes were checked against the official O'Hare interactive map; shapes are simplified and not to construction accuracy.",
+  "sources": {
+    "atrius": {"name": "O'Hare interactive map (Chicago Department of Aviation, built on Atrius)", "url": "https://maps.ord.flychicago.com/", "checked": "2026-11-04"},
+    "t1pdf": {"name": "Terminal 1 printable map (Upper Level, Lower Level, Pedestrian Tunnel Level)", "url": "https://www.flychicago.com/SiteCollectionDocuments/O%27Hare/ArchivedPDFs/Map/T1.pdf", "checked": "2026-11-04"},
+    "printable": {"name": "Official printable terminal maps", "url": "https://www.flychicago.com/ohare/map/Pages/printablemaps.aspx", "checked": "2026-11-04"},
+    "access": {"name": "Terminal accessibility and amenities", "url": "https://www.flychicago.com/ohare/servicesamenities/accessibility/Pages/Terminal-Accessibility.aspx", "checked": "2026-11-04"},
+    "transfer": {"name": "Transportation between terminals", "url": "https://www.flychicago.com/ohare/servicesamenities/services/pages/tbt.aspx", "checked": "2026-11-04"}
+  },
+  "terminals": {
+    "1": {"name": "Terminal 1", "concourses": ["B", "C"], "status": "routes", "label": [41.9808, -87.9085]},
+    "2": {"name": "Terminal 2", "concourses": ["E", "F"], "status": "preview", "label": [41.9737, -87.9076]},
+    "3": {"name": "Terminal 3", "concourses": ["G", "H", "K", "L"], "status": "preview", "label": [41.9726, -87.9017]},
+    "5": {"name": "Terminal 5", "concourses": ["M"], "status": "preview", "label": [41.9757, -87.8868]}
+  },
+  "levels": {
+    "t1-upper": {"terminal": "1", "name": "Upper Level", "detail": "Gates and check-in", "order": 2},
+    "t1-tunnel": {"terminal": "1", "name": "Pedestrian Tunnel Level", "detail": "B/C tunnel below the apron", "order": 1},
+    "t2-departures": {"terminal": "2", "name": "Departures level", "detail": "Gates", "order": 2},
+    "t3-departures": {"terminal": "3", "name": "Departures level", "detail": "Gates", "order": 2},
+    "t3-lower": {"terminal": "3", "name": "Lower level", "detail": "", "order": 1},
+    "t5-departures": {"terminal": "5", "name": "Departures level", "detail": "Gates", "order": 2},
+    "t5-arrivals": {"terminal": "5", "name": "Arrivals level", "detail": "", "order": 1}
+  },
+  "corridors": [
+    {"id": "t1-b", "name": "Concourse B", "terminal": "1", "concourse": "B", "level": "t1-upper", "security": "airside", "source": "atrius",
+     "points": [[41.97705,-87.90718],[41.97760,-87.90708],[41.97793,-87.90702],[41.97855,-87.90689],[41.97903,-87.90677],[41.97945,-87.90668],[41.97989,-87.90660],[41.98044,-87.90648],[41.98100,-87.90633],[41.98135,-87.90605],[41.98152,-87.90550],[41.98170,-87.90495],[41.98176,-87.90460]]},
+    {"id": "t1-tunnel", "name": "B/C pedestrian tunnel", "terminal": "1", "concourse": "B/C", "level": "t1-tunnel", "security": "airside", "source": "atrius", "note": "Moving walkways",
+     "points": [[41.97906,-87.90691],[41.97910,-87.90735],[41.97910,-87.90748],[41.97901,-87.90860],[41.97892,-87.90959],[41.97893,-87.90984],[41.97896,-87.91001]]},
+    {"id": "t1-c", "name": "Concourse C", "terminal": "1", "concourse": "C", "level": "t1-upper", "security": "airside", "source": "atrius",
+     "points": [[41.97672,-87.91066],[41.97760,-87.91047],[41.97850,-87.91026],[41.97895,-87.91018],[41.97930,-87.91011],[41.97990,-87.90998],[41.98050,-87.90984],[41.98095,-87.90974]]}
+  ],
+  "connectors": [
+    {"id": "t1-esc-b", "kind": "escalator", "name": "Escalator", "terminal": "1", "landmark": "between Gates B8 and B9", "source": "atrius",
+     "upper": {"point": [41.97906,-87.90692], "level": "t1-upper"}, "lower": {"point": [41.97910,-87.90735], "level": "t1-tunnel"}, "meters": 36},
+    {"id": "t1-elev-b", "kind": "elevator", "name": "Elevator", "terminal": "1", "landmark": "between Gates B8 and B9", "source": "atrius",
+     "upper": {"point": [41.97903,-87.90692], "level": "t1-upper"}, "lower": {"point": [41.97906,-87.90691], "level": "t1-tunnel"}, "meters": 8},
+    {"id": "t1-esc-c", "kind": "escalator", "name": "Escalator", "terminal": "1", "landmark": "near Gates C18 and C19", "source": "atrius",
+     "upper": {"point": [41.97896,-87.91006], "level": "t1-upper"}, "lower": {"point": [41.97893,-87.90984], "level": "t1-tunnel"}, "meters": 18},
+    {"id": "t1-elev-c", "kind": "elevator", "name": "Elevator", "terminal": "1", "landmark": "near Gates C18 and C19", "source": "atrius",
+     "upper": {"point": [41.97894,-87.91004], "level": "t1-upper"}, "lower": {"point": [41.97896,-87.91001], "level": "t1-tunnel"}, "meters": 8}
+  ],
+  "signs": [
+    {"id": "t1-b6", "label": "Near Gate B6", "demo": true},
+    {"id": "t1-b14", "label": "Near Gate B14"},
+    {"id": "t1-c10", "label": "Near Gate C10"},
+    {"id": "t1-c19", "label": "Near Gate C19"}
+  ],
+  "schematic": {
+    "halls": [
+      {"terminal": "1", "name": "Terminal 1 main hall", "points": [[41.97730,-87.90660],[41.98010,-87.90660],[41.98010,-87.90545],[41.97730,-87.90545]]},
+      {"terminal": "2", "name": "Terminal 2 main hall", "points": [[41.97625,-87.90560],[41.97750,-87.90560],[41.97750,-87.90400],[41.97625,-87.90400]]},
+      {"terminal": "3", "name": "Terminal 3 main hall", "points": [[41.97590,-87.90350],[41.97750,-87.90350],[41.97750,-87.90010],[41.97590,-87.90010]]},
+      {"terminal": "5", "name": "Terminal 5 main hall", "points": [[41.97440,-87.89150],[41.97620,-87.89150],[41.97620,-87.88950],[41.97440,-87.88950]]}
+    ],
+    "piers": [
+      {"terminal": "1", "concourse": "B", "width": 50, "points": [[41.97700,-87.90718],[41.97793,-87.90702],[41.97903,-87.90677],[41.98100,-87.90633],[41.98135,-87.90605],[41.98152,-87.90550],[41.98176,-87.90455]]},
+      {"terminal": "1", "concourse": "C", "width": 80, "points": [[41.97672,-87.91066],[41.97850,-87.91026],[41.97990,-87.90998],[41.98095,-87.90974]]},
+      {"terminal": "2", "concourse": "E", "width": 45, "points": [[41.97690,-87.90620],[41.97600,-87.90575],[41.97545,-87.90630],[41.97515,-87.90720],[41.97490,-87.90800],[41.97472,-87.90860],[41.97462,-87.90905]]},
+      {"terminal": "2", "concourse": "F", "width": 45, "points": [[41.97600,-87.90420],[41.97590,-87.90560],[41.97560,-87.90600],[41.97311,-87.90603]]},
+      {"terminal": "3", "concourse": "G", "width": 45, "points": [[41.97580,-87.90323],[41.97311,-87.90323]]},
+      {"terminal": "3", "concourse": "H", "width": 45, "points": [[41.97600,-87.90200],[41.97590,-87.90041],[41.97292,-87.90041]]},
+      {"terminal": "3", "concourse": "K", "width": 50, "points": [[41.97660,-87.90060],[41.97600,-87.90040],[41.97535,-87.89975],[41.97490,-87.89880],[41.97470,-87.89770],[41.97445,-87.89680],[41.97400,-87.89712]]},
+      {"terminal": "3", "concourse": "L", "width": 45, "points": [[41.97680,-87.90040],[41.97705,-87.89900],[41.97700,-87.89780],[41.97690,-87.89650]]},
+      {"terminal": "3", "concourse": "L", "width": 40, "points": [[41.97705,-87.89785],[41.97855,-87.89775],[41.97858,-87.89616]]},
+      {"terminal": "5", "concourse": "M", "width": 50, "points": [[41.97790,-87.89265],[41.97640,-87.89200],[41.97500,-87.89160],[41.97415,-87.89130],[41.97393,-87.89000],[41.97396,-87.88240],[41.97540,-87.88255]]}
+    ],
+    "secureWalkways": [
+      {"name": "Secure walkway, Terminals 1 and 2", "points": [[41.97700,-87.90705],[41.97697,-87.90660],[41.97690,-87.90625]], "source": "transfer"},
+      {"name": "Secure walkway, Terminals 2 and 3", "points": [[41.97600,-87.90420],[41.97585,-87.90360],[41.97580,-87.90323]], "source": "transfer"}
+    ],
+    "ats": {"name": "Airport Transit System", "security": "landside", "source": "transfer",
+      "stations": [["1",41.97928,-87.90552],["2",41.97733,-87.90492],["3",41.97712,-87.90182],["5",41.97500,-87.89023]]},
+    "ttb": {"name": "Terminal Transfer Bus", "security": "airside", "source": "transfer",
+      "routes": [[[41.97902,-87.91038],[41.97442,-87.89133]],[[41.97314,-87.90324],[41.97442,-87.89133]],[[41.97431,-87.89671],[41.97442,-87.89133]]]}
+  },
+  "transfers": {
+    "source": "transfer",
+    "walkingCoreTerminals": "Terminals 1, 2 and 3 have pedestrian connections on the secure side. Terminal 5 does not.",
+    "ttb": {
+      "name": "Terminal Transfer Bus",
+      "hours": {"start": "11:30", "end": "21:30", "timezone": "America/Chicago"},
+      "every": "15 minutes",
+      "eligibility": "Connecting passengers with a same-day departing flight from the terminal they are transferring to. Boarding pass required.",
+      "routes": ["Terminal 1 to Terminal 5", "Terminal 3 to Terminal 5"],
+      "stops": {"1": "Gate C18B", "3": "Gates G17 and K20", "5": "Gate M13"},
+      "closed": "The Gate B1 stop in Terminal 1 is temporarily closed due to construction."
+    },
+    "ats": {
+      "name": "Airport Transit System",
+      "rule": "Between 9:30 p.m. and 11:30 a.m., passengers connecting between Terminals 1, 2 or 3 and Terminal 5 exit security, ride the ATS and are rescreened at a TSA checkpoint."
+    }
+  }
+}

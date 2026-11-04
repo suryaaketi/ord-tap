@@ -1,0 +1,377 @@
+/* Campus Tap: Apple Maps–style layout. Full-bleed map; a frosted panel floats over it.
+   Colors follow Apple's system palette and switch with the phone's light or dark setting. */
+:root{
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",system-ui,"Segoe UI",sans-serif;
+  --bg:#f2f2f7;--surface:#fff;--surface-2:#f2f2f7;
+  --material:rgba(248,248,250,.8);--material-strong:rgba(255,255,255,.92);--thumb:#fff;
+  --label:#000;--label-2:rgba(60,60,67,.62);--label-3:rgba(60,60,67,.32);
+  --separator:rgba(60,60,67,.16);--fill:rgba(120,120,128,.12);--fill-2:rgba(120,120,128,.2);
+  --blue:#007aff;--green:#34c759;--orange:#ff9500;--red:#ff3b30;--indigo:#5856d6;--brown:#a2845e;
+  --hud:rgba(22,22,24,.86);--map-bg:#eef0eb;
+  --shadow:0 10px 40px rgba(0,0,0,.14),0 1px 4px rgba(0,0,0,.08);
+  --shadow-control:0 2px 10px rgba(0,0,0,.14);
+  --ease:cubic-bezier(.32,.72,0,1);
+  --sidebar:384px;--gutter:16px;
+  font-family:var(--font);color:var(--label);font-synthesis:none;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#000;--surface:#1c1c1e;--surface-2:#2c2c2e;
+  --material:rgba(28,28,30,.78);--material-strong:rgba(44,44,46,.94);--thumb:#636366;
+  --label:#fff;--label-2:rgba(235,235,245,.62);--label-3:rgba(235,235,245,.3);
+  --separator:rgba(84,84,88,.55);--fill:rgba(118,118,128,.24);--fill-2:rgba(118,118,128,.32);
+  --blue:#0a84ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--indigo:#5e5ce6;--brown:#ac8e68;
+  --hud:rgba(44,44,46,.92);--map-bg:#1d1f22;
+  --shadow:0 10px 40px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);
+  --shadow-control:0 2px 10px rgba(0,0,0,.45);
+}}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--map-bg);overflow:hidden;overscroll-behavior:none}
+button,input,select{font:inherit;color:inherit}
+button,input,select,a{-webkit-tap-highlight-color:transparent}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.4}
+a{color:var(--blue)}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--blue) 70%,transparent);outline-offset:2px}
+[hidden]{display:none!important}
+svg{display:block;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.skip-link{position:absolute;z-index:9999;left:10px;top:-80px;background:var(--surface);color:var(--blue);padding:12px;border-radius:10px}
+.skip-link:focus{top:10px}
+.noscript{position:fixed;inset:0 0 auto;background:var(--surface);padding:20px;z-index:5000}
+
+/* ---------- Layout: map underneath, panel on top ---------- */
+.app-layout{position:fixed;inset:0}
+.map-panel{position:absolute;inset:0;background:var(--map-bg);overflow:hidden}
+.map-panel #map{position:absolute;inset:0;z-index:1;background:var(--map-bg)}
+.finder{
+  position:absolute;z-index:600;left:var(--gutter);top:var(--gutter);bottom:var(--gutter);width:var(--sidebar);
+  background:var(--material);-webkit-backdrop-filter:saturate(180%) blur(28px);backdrop-filter:saturate(180%) blur(28px);
+  border-radius:18px;box-shadow:var(--shadow);overflow-y:auto;overscroll-behavior:contain;
+  scrollbar-width:thin;scrollbar-color:var(--fill-2) transparent;
+}
+.sheet-grab{position:sticky;top:0;z-index:5;padding:14px 16px 10px;background:var(--material);-webkit-backdrop-filter:saturate(180%) blur(28px);backdrop-filter:saturate(180%) blur(28px);touch-action:none}
+.sheet-handle{display:none}
+.site-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--label);min-width:0}
+.brand-mark{width:32px;height:32px;border-radius:8px;background:var(--blue);display:grid;place-items:center;flex-shrink:0}
+.brand-mark svg{width:18px;height:18px;fill:#fff;stroke:none}
+.brand-mark circle{fill:var(--blue)}
+.brand strong{display:block;font-size:17px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
+.brand small{display:block;font-size:12px;color:var(--label-2);line-height:1.3}
+.setup-button,.icon-button{width:34px;height:34px;border-radius:50%;border:0;background:var(--fill);color:var(--blue);display:grid;place-items:center;flex-shrink:0;transition:background .2s}
+.setup-button svg,.icon-button svg{width:18px;height:18px}
+.setup-button:active,.icon-button:active{background:var(--fill-2)}
+
+/* ---------- Header block: title and starting point ---------- */
+.finder-top{padding:4px 16px 8px}
+.finder h1{font-size:28px;line-height:1.15;letter-spacing:-.025em;font-weight:700;margin:6px 4px 14px}
+.origin-card{display:flex;gap:12px;align-items:center;background:var(--surface);border-radius:12px;padding:12px 14px}
+.origin-icon{width:30px;height:30px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;flex-shrink:0}
+.origin-icon svg{width:17px;height:17px}
+.origin-field{min-width:0;flex:1}
+.origin-field label{display:block;font-size:12px;color:var(--label-2);line-height:1.3}
+.origin-field select{
+  width:100%;appearance:none;-webkit-appearance:none;border:0;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%238e8e93' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right center/14px;
+  font-size:17px;font-weight:600;letter-spacing:-.015em;padding:1px 22px 1px 0;cursor:pointer;text-overflow:ellipsis;color:var(--label)
+}
+.origin-field>span{display:block;font-size:13px;color:var(--label-2);margin-top:2px;line-height:1.35}
+.location-button{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--blue);font-size:15px;padding:10px 4px 2px}
+.location-button svg{width:17px;height:17px}
+.inline-message{font-size:13px;line-height:1.45;color:var(--label);background:color-mix(in srgb,var(--orange) 16%,var(--surface));padding:10px 12px;border-radius:10px;margin:8px 0 0}
+
+/* ---------- Search, categories and the place list ---------- */
+.place-browser{padding:8px 16px 16px}
+.search-field{height:40px;display:flex;align-items:center;gap:7px;background:var(--fill);border-radius:11px;padding:0 10px;transition:background .2s}
+.search-field:focus-within{background:var(--fill-2)}
+.search-field svg{width:17px;height:17px;color:var(--label-2);flex-shrink:0}
+.search-field input{flex:1;min-width:0;border:0;background:transparent;font-size:17px;letter-spacing:-.01em;padding:8px 0;outline:none}
+.search-field input::placeholder{color:var(--label-2)}
+.search-field kbd{font:12px/1 var(--font);color:var(--label-3);border:1px solid var(--separator);border-radius:5px;padding:3px 6px}
+/* Segmented control: one sliding thumb, moved by the --segment index that app.js sets. */
+.categories{position:relative;display:grid;grid-template-columns:repeat(5,1fr);background:var(--fill);border-radius:9px;padding:2px;margin:12px 0 18px;--segment:0}
+.categories::before{content:"";position:absolute;top:2px;bottom:2px;left:2px;width:calc((100% - 4px)/5);border-radius:7px;background:var(--thumb);box-shadow:0 3px 8px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04);transform:translateX(calc(var(--segment) * 100%));transition:transform .35s var(--ease)}
+.category{position:relative;z-index:1;border:0;background:none;font-size:13px;font-weight:500;padding:7px 2px;border-radius:7px;color:var(--label);white-space:nowrap}
+.category.active{font-weight:600}
+.category:not(.active):active{opacity:.6}
+.section-label{display:flex;justify-content:space-between;align-items:baseline;margin:0 4px 8px}
+.section-label>span:first-child{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.section-label>span:last-child{font-size:13px;color:var(--label-2)}
+/* Inset grouped list: one rounded group, hairlines between rows. */
+.place-list{background:var(--surface);border-radius:12px;overflow:hidden}
+.place-card{position:relative;display:flex;align-items:center;gap:12px;width:100%;border:0;background:transparent;text-align:left;padding:11px 14px;transition:background .15s}
+.place-card + .place-card::before{content:"";position:absolute;top:0;left:58px;right:0;border-top:.5px solid var(--separator)}
+.place-card:active:not(:disabled){background:var(--fill)}
+.place-card:focus-visible{outline-offset:-3px}
+.place-symbol{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;color:#fff;background:var(--indigo)}
+.place-symbol svg{width:17px;height:17px;stroke-width:2}
+.place-symbol.food{background:var(--orange)}
+.place-symbol.study{background:var(--brown)}
+.place-symbol.parking{background:var(--blue)}
+.place-info{min-width:0;flex:1}
+.place-name{display:block;font-size:17px;font-weight:500;letter-spacing:-.015em;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.place-description{display:block;font-size:13px;color:var(--label-2);line-height:1.3;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.place-time{display:flex;align-items:center;gap:3px;font-size:13px;color:var(--label-2);margin-top:2px}
+.place-time svg{width:13px;height:13px}
+.place-card .here{color:var(--blue);font-weight:500}
+.place-arrow{width:13px;color:var(--label-3);flex-shrink:0}
+.place-arrow svg{width:13px;height:13px;stroke-width:2.4}
+.place-card:disabled{opacity:1;cursor:default}
+.empty-state,.loading{font-size:15px;line-height:1.5;color:var(--label-2);padding:16px;margin:0}
+.list-more{font-size:13px;line-height:1.45;color:var(--label-2);margin:0;padding:12px 14px;border-top:.5px solid var(--separator)}
+.finder-footer{padding:6px 20px 24px;font-size:12px;color:var(--label-3);line-height:1.5}
+.finder-footer span,.finder-footer small{display:block;font-size:12px}
+
+/* ---------- Route card ---------- */
+.route-view{padding:4px 16px 20px}
+.back-button{display:flex;align-items:center;gap:2px;border:0;background:none;color:var(--blue);font-size:17px;padding:4px 0 10px;margin-left:-6px}
+.back-button svg{width:22px;height:22px;stroke-width:2.2}
+.route-category{font-size:15px;color:var(--label-2);margin:0 0 2px}
+.route-view h2{font-size:28px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0 0 4px}
+.route-subtitle{font-size:15px;color:var(--label-2);line-height:1.35;margin:0 0 14px}
+#route-state:empty{display:none}
+#route-state{font-size:13px;line-height:1.4;color:var(--label);background:color-mix(in srgb,var(--orange) 14%,var(--surface));border-radius:10px;padding:9px 12px;margin:0 0 12px}
+.route-summary{display:flex;align-items:center;gap:22px;background:var(--surface);border-radius:12px;padding:12px 16px}
+.route-summary>div strong{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.route-summary>div span{display:block;font-size:13px;color:var(--label-2)}
+.walking-badge{margin-left:auto;width:36px;height:36px;border-radius:50%;background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);display:grid;place-items:center}
+.walking-badge svg{width:20px;height:20px}
+/* iOS-style switch */
+.stairs-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border-radius:12px;padding:9px 12px 9px 16px;margin:10px 0 14px;font-size:17px;letter-spacing:-.01em;cursor:pointer}
+.stairs-toggle input{appearance:none;-webkit-appearance:none;margin:0;flex-shrink:0;width:51px;height:31px;border-radius:16px;background:var(--fill-2);position:relative;cursor:pointer;transition:background .25s}
+.stairs-toggle input::before{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.15),0 1px 1px rgba(0,0,0,.16);transition:transform .3s var(--ease)}
+.stairs-toggle input:checked{background:var(--green)}
+.stairs-toggle input:checked::before{transform:translateX(20px)}
+.route-actions{display:grid;grid-template-columns:1fr auto;gap:10px}
+.primary-button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:50px;border:0;border-radius:14px;background:var(--blue);color:#fff;font-size:17px;font-weight:600;letter-spacing:-.01em;transition:transform .15s,filter .15s}
+.primary-button svg{width:19px;height:19px;stroke-width:2.1}
+.secondary-button{height:50px;border:0;border-radius:14px;background:var(--fill);color:var(--blue);font-size:17px;font-weight:600;padding:0 18px;transition:transform .15s,background .15s}
+.primary-button:active,.secondary-button:active,.stop-button:active{transform:scale(.97)}
+.primary-button:active{filter:brightness(.92)}
+.navigation-note{font-size:13px;line-height:1.4;color:var(--label-2);margin:10px 4px 0}
+.walk-controls{background:var(--surface);border-radius:12px;padding:12px}
+.walk-controls p{font-size:13px;line-height:1.4;color:var(--label-2);margin:0 2px 10px}
+.preview-controls{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-bottom:10px}
+.preview-controls button{height:40px;border:0;border-radius:10px;background:var(--fill);color:var(--blue);font-size:15px;font-weight:600}
+.preview-controls>span{font-size:13px;color:var(--label-2);font-variant-numeric:tabular-nums}
+.stop-button{width:100%;height:46px;border:0;border-radius:12px;background:var(--red);color:#fff;font-size:17px;font-weight:600;transition:transform .15s}
+.steps-heading{display:flex;justify-content:space-between;align-items:baseline;margin:22px 4px 8px}
+.steps-heading h3{font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0}
+.steps-heading>span{font-size:13px;color:var(--label-2)}
+.route-steps{list-style:none;margin:0;padding:0;counter-reset:steps;background:var(--surface);border-radius:12px;overflow:hidden}
+.route-steps li{position:relative;counter-increment:steps;padding:11px 14px 11px 54px;font-size:15px;line-height:1.35;transition:background .25s}
+.route-steps li + li::after{content:"";position:absolute;top:0;left:54px;right:0;border-top:.5px solid var(--separator)}
+.route-steps li::before{content:counter(steps);position:absolute;left:14px;top:10px;width:26px;height:26px;border-radius:50%;background:var(--fill);color:var(--label-2);display:grid;place-items:center;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.route-steps li>small{display:block;font-size:13px;color:var(--label-2);margin-top:2px}
+.route-steps .arrival::before{content:"";background:var(--red) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z' fill='%23fff'/%3E%3C/svg%3E") no-repeat center/14px}
+.route-steps li.active-step{background:color-mix(in srgb,var(--blue) 12%,var(--surface));font-weight:600}
+.route-steps li.active-step::before{background:var(--blue);color:#fff}
+.route-steps li.active-step small{font-weight:400}
+.route-footnote{display:flex;gap:8px;color:var(--label-2);margin:14px 4px 0}
+.route-footnote svg{width:15px;height:15px;flex-shrink:0;margin-top:1px}
+.route-footnote p{font-size:12px;line-height:1.45;margin:0}
+
+/* The route card replaces the title and starting point; its first line names the start. */
+.has-route .finder-top{display:none}
+
+/* ---------- Floating map controls ---------- */
+.map-title{display:none}
+.map-controls{position:absolute;z-index:450;top:var(--gutter);right:var(--gutter);display:flex;flex-direction:column;border-radius:12px;overflow:hidden;background:var(--material);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:var(--shadow-control)}
+.fit-map,.recenter-map{width:44px;height:44px;border:0;background:transparent;color:var(--blue);display:grid;place-items:center}
+.recenter-map{border-top:.5px solid var(--separator)}
+.fit-map svg,.recenter-map svg{width:19px;height:19px}
+.fit-map:active,.recenter-map:active{background:var(--fill)}
+.map-legend{position:absolute;z-index:450;bottom:22px;left:calc((100% + var(--sidebar) + var(--gutter)) / 2);transform:translateX(-50%);display:flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 14px;border-radius:999px;background:var(--material);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:var(--shadow-control);font-size:12px;color:var(--label-2)}
+.legend-start{width:10px;height:10px;border-radius:50%;background:#fff;border:3px solid var(--blue)}
+.legend-destination{width:9px;height:9px;border-radius:50%;background:var(--orange);margin-left:10px}
+.legend-route{width:18px;height:4px;border-radius:2px;background:var(--blue);margin-left:10px}
+.map-status{position:absolute;z-index:450;top:calc(var(--gutter) + 56px);right:var(--gutter);max-width:340px;background:var(--material-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.4;box-shadow:var(--shadow-control)}
+.leaflet-control-zoom{border:0!important;border-radius:12px!important;overflow:hidden;box-shadow:var(--shadow-control)!important;background:var(--material)!important;-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px)}
+.leaflet-control-zoom a{width:44px!important;height:44px!important;font:400 22px/44px var(--font)!important;color:var(--label)!important;background:transparent!important;border-color:var(--separator)!important}
+.leaflet-bottom.leaflet-right .leaflet-control-zoom{margin:0 var(--gutter) 58px 0}
+.leaflet-control-attribution{font:11px var(--font)!important;padding:2px 8px!important;background:var(--material)!important;color:var(--label-2)!important;border-radius:6px 0 0 0}
+.leaflet-control-attribution a{color:var(--label-2)!important}
+.leaflet-container{font-family:var(--font)!important;background:var(--map-bg)!important}
+
+/* ---------- Map markers ---------- */
+.campus-marker,.position-marker{background:none;border:0}
+.map-pin{width:30px;height:30px;margin:2px;display:grid;place-items:center;border-radius:50%;background:var(--indigo);color:#fff;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);transition:transform .3s var(--ease)}
+.map-pin svg{width:16px;height:16px;stroke-width:2}
+.map-pin.food{background:var(--orange)}
+.map-pin.study{background:var(--brown)}
+.map-pin.parking{background:var(--blue)}
+.map-pin.destination{background:var(--red);transform:scale(1.25);box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.map-pin.start{width:20px;height:20px;margin:7px;background:#fff;border:5px solid var(--blue);box-shadow:0 1px 5px rgba(0,0,0,.3)}
+.map-pin.start svg{display:none}
+.leaflet-tooltip{font:500 13px var(--font)!important;color:var(--label)!important;background:var(--material-strong)!important;border:0!important;border-radius:8px!important;box-shadow:var(--shadow-control)!important;padding:6px 10px!important}
+.leaflet-tooltip-top::before{border-top-color:var(--material-strong)!important}
+.road-label{background:none;border:0;text-align:center;pointer-events:none!important}
+.road-label-text{display:inline-block;color:#7d8378;font:600 10px var(--font);letter-spacing:.01em;white-space:nowrap;text-shadow:0 0 3px #f5f6f0,0 0 3px #f5f6f0}
+.live-dot{position:relative;display:block;width:20px;height:20px;background:var(--blue);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 7px color-mix(in srgb,var(--blue) 18%,transparent),0 2px 6px rgba(0,0,0,.3)}
+.live-dot.simulated{background:var(--orange);box-shadow:0 0 0 7px color-mix(in srgb,var(--orange) 20%,transparent),0 2px 6px rgba(0,0,0,.3)}
+.heading-cone{position:absolute;left:50%;top:50%;width:76px;height:76px;margin:-38px 0 0 -38px;border-radius:50%;pointer-events:none;background:conic-gradient(from -25deg,color-mix(in srgb,var(--blue) 50%,transparent) 0deg 50deg,transparent 50deg);-webkit-mask:radial-gradient(circle,#000 20%,transparent 70%);mask:radial-gradient(circle,#000 20%,transparent 70%);transition:transform .25s linear}
+.heading-cone.wide{background:conic-gradient(from -40deg,color-mix(in srgb,var(--blue) 32%,transparent) 0deg 80deg,transparent 80deg)}
+.heading-cone.simulated{background:conic-gradient(from -25deg,color-mix(in srgb,var(--orange) 50%,transparent) 0deg 50deg,transparent 50deg)}
+.heading-cone[hidden]{display:none}
+
+/* ---------- Walking: turn banner at the top, like Apple's navigation ---------- */
+.walk-hud{position:absolute;z-index:460;top:var(--gutter);left:calc(var(--sidebar) + var(--gutter) * 2);right:calc(var(--gutter) * 2 + 44px);max-width:560px;display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:18px;color:#fff;background:var(--hud);-webkit-backdrop-filter:saturate(160%) blur(24px);backdrop-filter:saturate(160%) blur(24px);box-shadow:0 8px 30px rgba(0,0,0,.25);animation:hud-in .45s var(--ease)}
+.walk-hud-symbol{width:44px;height:44px;flex-shrink:0;display:grid;place-items:center}
+.walk-hud-symbol svg{width:38px;height:38px;stroke-width:2.2}
+.walk-hud div{min-width:0}
+.walk-hud div>span{display:block;font-size:13px;color:rgba(255,255,255,.6);margin-bottom:2px}
+.walk-hud strong{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.walk-hud small{display:block;font-size:15px;color:rgba(255,255,255,.75);line-height:1.35;margin-top:3px}
+@keyframes hud-in{from{opacity:0;transform:translateY(-12px) scale(.98)}to{opacity:1;transform:none}}
+.walking .map-legend{display:none}
+
+/* ---------- Toast and setup dialog ---------- */
+.toast{position:fixed;z-index:10000;left:50%;bottom:28px;transform:translateX(-50%);max-width:calc(100% - 32px);padding:12px 18px;border-radius:999px;background:var(--hud);color:#fff;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);font-size:15px;font-weight:500;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.2);animation:toast-in .4s var(--ease)}
+@keyframes toast-in{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+dialog{border:0;border-radius:22px;padding:22px;max-width:620px;width:calc(100% - 24px);max-height:88dvh;background:var(--bg);color:var(--label);box-shadow:var(--shadow)}
+dialog[open]{animation:sheet-in .45s var(--ease)}
+@keyframes sheet-in{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+dialog::backdrop{background:rgba(0,0,0,.32);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.dialog-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.dialog-heading h2{font-size:28px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0 0 10px}
+.icon-button{color:var(--label-2)}
+.dialog-intro{font-size:15px;line-height:1.45;color:var(--label-2);margin:0 0 16px}
+.setup-steps{list-style:none;counter-reset:setup;padding:0;margin:0 0 18px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.setup-steps li{counter-increment:setup;background:var(--surface);border-radius:12px;padding:12px}
+.setup-steps li::before{content:counter(setup);display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-size:13px;font-weight:600;margin-bottom:8px}
+.setup-steps b{display:block;font-size:15px;font-weight:600}
+.setup-steps span{display:block;font-size:13px;line-height:1.4;color:var(--label-2);margin-top:3px}
+.tag-links{background:var(--surface);border-radius:12px;overflow:hidden}
+.tag-row{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.tag-row + .tag-row{border-top:.5px solid var(--separator)}
+.tag-row>div{flex:1;min-width:0}
+.tag-row label{display:block;font-size:15px;font-weight:500}
+.tag-row input{display:block;width:100%;border:0;background:transparent;padding:0;font-size:12px;color:var(--label-2);text-overflow:ellipsis}
+.tag-row button{border:0;border-radius:999px;background:var(--fill);color:var(--blue);font-size:13px;font-weight:600;padding:7px 12px;white-space:nowrap}
+.download-button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:50px;margin-top:14px;border:0;border-radius:14px;background:var(--blue);color:#fff;font-size:17px;font-weight:600}
+.download-button svg{width:18px;height:18px}
+.prototype-tools-link{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:13px 14px;border-radius:12px;background:var(--surface);color:var(--blue);font-size:15px;text-decoration:none}
+.prototype-tools-link svg{width:15px;height:15px;color:var(--label-3)}
+.setup-note{font-size:13px;line-height:1.45;color:var(--label-2);margin:14px 4px}
+.setup-links{display:flex;flex-wrap:wrap;gap:14px;margin:0 4px}
+.setup-links a{display:flex;align-items:center;gap:4px;font-size:13px;text-decoration:none}
+.setup-links svg{width:12px;height:12px}
+
+/* ---------- Dark map: invert only the base map layers, so pins and the route keep their colors ---------- */
+@media (prefers-color-scheme:dark){
+  .leaflet-base-land-pane,.leaflet-base-buildings-pane,.leaflet-base-roads-pane,.leaflet-base-paths-pane{filter:invert(.9) hue-rotate(180deg) saturate(.55) brightness(.92) contrast(.92)}
+  .road-label-text{color:#a3a8ad;text-shadow:0 0 3px #1d1f22,0 0 3px #1d1f22}
+  .map-pin{border-color:#1c1c1e}
+  .map-pin.start{background:#1c1c1e}
+}
+
+/* ---------- Phones: map fills the screen, the panel becomes a draggable bottom sheet ---------- */
+@media (max-width:700px){
+  :root{--gutter:12px}
+  .finder{
+    left:0;right:0;top:0;bottom:auto;width:auto;height:calc(100dvh - 52px);
+    border-radius:14px 14px 0 0;box-shadow:0 -2px 24px rgba(0,0,0,.14);
+    will-change:transform;transform:translate3d(0,44dvh,0);
+    padding-bottom:calc(var(--sheet-hidden,0px) + env(safe-area-inset-bottom));
+  }
+  .sheet-grab{padding:6px 16px 8px;cursor:grab}
+  .sheet-handle{display:block;width:36px;height:5px;border-radius:3px;background:var(--label-3);margin:0 auto 9px}
+  .finder h1{font-size:26px;margin:2px 4px 12px}
+  .finder-top,.place-browser,.route-view{padding-left:12px;padding-right:12px}
+  .search-field kbd{display:none}
+  /* Controls ride just above the sheet and follow it. */
+  .map-controls{top:calc(env(safe-area-inset-top) + var(--gutter))}
+  .leaflet-control-zoom{display:none}
+  .leaflet-bottom{bottom:var(--sheet-visible,56dvh);transition:bottom .5s var(--ease)}
+  .map-legend{display:none}
+  .map-status{left:var(--gutter);right:var(--gutter);top:auto;bottom:calc(var(--sheet-visible,56dvh) + 12px);max-width:none}
+  .toast{bottom:calc(var(--sheet-visible,56dvh) + 14px);transition:bottom .5s var(--ease)}
+  .sheet-dragging .leaflet-bottom,.sheet-dragging .toast{transition:none}
+  .walk-hud{top:calc(env(safe-area-inset-top) + var(--gutter));left:var(--gutter);right:calc(var(--gutter) * 2 + 44px);padding:12px 14px;gap:10px;border-radius:16px}
+  .walk-hud-symbol{width:36px;height:36px}
+  .walk-hud-symbol svg{width:32px;height:32px}
+  .walk-hud strong{font-size:19px}
+  .walk-hud small{font-size:13px}
+  /* While walking, the sheet keeps only the destination, time and controls. */
+  .has-route .site-header,.walking .finder-top,.walking .back-button,.walking .route-category,.walking .route-subtitle,.walking .stairs-toggle{display:none}
+  .walking .sheet-grab{padding-bottom:2px}
+  .walking .route-view h2{font-size:22px}
+  .walking .route-summary{margin-bottom:10px}
+  
+  .setup-steps{grid-template-columns:1fr}
+  dialog{width:100%;max-width:none;margin:auto 0 0;border-radius:22px 22px 0 0;max-height:92dvh;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+}
+@media (min-width:1500px){:root{--sidebar:420px}}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+
+/* ======================= ORD Tap additions ======================= */
+:root{--pier:#fff;--hall:#e6e6eb;--pier-edge:#c7c7cc;--tunnel:#8e8e93;--tunnel-casing:#3a3a3c;--route:#007aff;--ats:#af52de;--ttb:#ff9500;--map-bg:#f4f4f1}
+@media (prefers-color-scheme:dark){:root{--pier:#3a3a3c;--hall:#242426;--pier-edge:#545458;--tunnel:#98989d;--tunnel-casing:#000;--route:#0a84ff;--ats:#bf5af2;--ttb:#ff9f0a;--map-bg:#141416}}
+.link-button{display:grid;place-items:center;text-decoration:none}
+/* "You are here" card: the NFC sign sets it; a picker covers people without a sign. */
+.here-icon{background:var(--blue)}
+.here-card.needs-start{box-shadow:0 0 0 2px var(--orange) inset}
+.here-card.needs-start .origin-icon{background:var(--orange)}
+.origin-field label{font-weight:600;color:var(--blue)}
+.needs-start .origin-field label{color:var(--orange)}
+/* Terminal jump bar */
+.terminal-bar{position:absolute;z-index:450;top:var(--gutter);left:calc(var(--sidebar) + var(--gutter) * 2);display:flex;gap:2px;padding:3px;border-radius:12px;background:var(--material);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:var(--shadow-control)}
+.terminal-bar button{border:0;background:none;color:var(--label);font-size:15px;font-weight:600;min-width:44px;height:38px;padding:0 10px;border-radius:9px}
+.terminal-bar button:active{background:var(--fill)}
+/* Map labels */
+.ord-label{background:none;border:0}
+.t-label{display:inline-flex;flex-direction:column;align-items:center;gap:2px;transform:translate(-50%,-50%);padding:7px 12px;border-radius:12px;background:var(--material-strong);box-shadow:var(--shadow-control);white-space:nowrap;cursor:pointer}
+.t-label b{font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--label)}
+.t-label i{font-style:normal;font-size:11px;font-weight:600;color:var(--orange)}
+.t-label i.ok{color:var(--green)}
+.map-detail .t-label{opacity:0;pointer-events:none}
+.c-label{display:block;transform:translate(-50%,-50%);font:700 22px var(--font);color:var(--label-3);letter-spacing:-.02em}
+.g-label{display:inline-grid;place-items:center;transform:translate(-50%,-50%);min-width:36px;height:24px;padding:0 6px;border-radius:7px;background:var(--surface);color:var(--label);font:700 12px var(--font);box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer;white-space:nowrap}
+.g-label.preview{color:var(--label-2)}
+.a-pin{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:2px solid #fff;color:#fff;background:var(--indigo);box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:pointer}
+.a-pin svg{width:15px;height:15px;stroke-width:2}
+.a-pin.restroom{background:var(--blue)}.a-pin.food{background:var(--orange)}.a-pin.transfer{background:var(--ats)}
+.here-pin{position:relative;display:block;width:20px;height:20px}
+.here-dot{position:absolute;inset:0;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 8px color-mix(in srgb,var(--blue) 22%,transparent),0 2px 6px rgba(0,0,0,.3)}
+.here-text{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);white-space:nowrap;padding:4px 9px;border-radius:999px;background:var(--blue);color:#fff;font:700 12px var(--font);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.dest-pin{display:grid;place-items:center;width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--red);border:2px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+.dest-pin svg{width:17px;height:17px;color:#fff;transform:rotate(45deg);stroke-width:2.2}
+.level-pin{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--tunnel-casing);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.level-pin svg{width:15px;height:15px;stroke-width:2.6}
+.legend-tunnel{width:18px;height:0;border-top:3px dashed var(--tunnel);margin-left:10px}
+.legend-destination{background:var(--red)}
+/* List extras */
+.place-symbol.gate{background:var(--label-2)}.place-symbol.restroom{background:var(--blue)}.place-symbol.food{background:var(--orange)}.place-symbol.amenity{background:var(--indigo)}.place-symbol.transfer{background:var(--ats)}
+.badge{display:inline-block;font-size:12px;font-weight:600;color:var(--orange);background:color-mix(in srgb,var(--orange) 14%,transparent);border-radius:6px;padding:1px 6px}
+/* Destination card */
+.facts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px}
+.fact{font-size:13px;font-weight:500;padding:4px 10px;border-radius:999px;background:var(--surface);color:var(--label)}
+.fact.preview{background:color-mix(in srgb,var(--orange) 16%,var(--surface));color:var(--label)}
+.notice{background:var(--surface);border-radius:12px;padding:12px 14px;margin:0 0 12px;border-left:4px solid var(--blue)}
+.notice.preview{border-left-color:var(--orange)}.notice.transfer{border-left-color:var(--ttb)}.notice.ok{border-left-color:var(--green)}
+.notice strong{display:block;font-size:15px;margin-bottom:4px}
+.notice p{font-size:13px;line-height:1.45;color:var(--label-2);margin:4px 0}
+.notice a{display:inline-flex;align-items:center;gap:4px;font-size:15px;font-weight:600;text-decoration:none;margin-top:6px;min-height:44px}
+.notice a svg{width:14px;height:14px}
+.directions li{padding-left:56px;cursor:pointer}
+.directions li::before{content:none}
+.directions .step-icon{position:absolute;left:14px;top:9px;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--fill);color:var(--label)}
+.directions .step-icon svg{width:17px;height:17px;stroke-width:2.2}
+.directions .escalator .step-icon,.directions .elevator .step-icon{background:var(--tunnel-casing);color:#fff}
+.directions .arrive .step-icon{background:var(--red);color:#fff}
+.directions .step-text{display:block}
+.directions li.active-step .step-icon{background:var(--blue);color:#fff}
+@media (max-width:700px){
+  .terminal-bar{top:calc(env(safe-area-inset-top) + var(--gutter));left:var(--gutter)}
+  .terminal-bar button{min-width:44px;height:40px;font-size:15px}
+  .has-route .finder-top{display:none}
+}
+@media (min-width:701px){ .has-route .finder-top{display:block} }
+
+/* A shared route opened without a sign still needs the starting-point picker. */
+body.has-route.needs-start .finder-top{display:block}
+.place-time .hint{color:var(--label-3)}

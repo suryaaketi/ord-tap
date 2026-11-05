@@ -103,3 +103,51 @@ test('the Worker hides the key, checks the number and the website, and reuses an
     assert.equal((await worker.fetch(new Request('https://w.example/flight?number=UA9'), {})).status, 500);
   } finally { globalThis.fetch = realFetch; }
 });
+
+test('the departures board lists upcoming O\'Hare departures in order, without codeshare copies', async () => {
+  const { boardRows, sampleBoard } = await import('../ord/flights.js');
+  const at = (t, over = {}) => record({ departure: { scheduled: `2026-11-04T${t}:00+00:00`, estimated: null, ...over.departure }, top: over.top });
+  const items = [
+    at('19:00', { top: { flight: { iata: 'AA10', codeshared: null }, airline: { name: 'American Airlines' } }, departure: { terminal: '3', gate: 'K10' } }),
+    at('18:00'),
+    at('18:00', { top: { flight: { iata: 'LH9000', codeshared: { airline_name: 'united airlines', flight_iata: 'ua1234' } } } }),
+    at('10:00'),                                                    // long gone
+    at('17:50'),                                                    // 10 minutes ago: still shown
+    record({ departure: { iata: 'DEN', scheduled: '2026-11-04T18:30:00+00:00' } })
+  ];
+  const rows = boardRows(items, '2026-11-04T18:00');
+  assert.deepEqual(rows.map(r => r.scheduled.key.slice(11)), ['17:50', '18:00', '19:00']);
+  assert.ok(rows.every(r => r.iata !== 'LH9000'));
+  assert.equal(rows[0].label, 'UA 1234');
+  assert.deepEqual(boardRows(items, '2026-11-04T18:00', { terminal: '3' }).map(r => r.iata), ['AA10']);
+  assert.deepEqual(boardRows(items, '2026-11-04T18:00', { query: 'american' }).map(r => r.iata), ['AA10']);
+  assert.equal(boardRows(items, '2026-11-04T18:00', { query: 'denver' }).length, 3);
+  assert.deepEqual(boardRows(items, '2026-11-04T18:00', { query: 'k10' }).map(r => r.iata), ['AA10']);
+  // Sample board: late at night, the morning flights move to tomorrow so the board is never empty.
+  const board = read('../data/sample-board.json');
+  const late = boardRows(sampleBoard(board, '2026-11-04T23:50'), '2026-11-04T23:50');
+  assert.ok(late.length >= 20); assert.equal(late[0].scheduled.date, '2026-11-05');
+  const noon = boardRows(sampleBoard(board, '2026-11-04T12:00'), '2026-11-04T12:00');
+  assert.equal(noon[0].scheduled.date, '2026-11-04');
+  assert.ok(noon.every((r, i) => i === 0 || (r.estimated || r.scheduled).key >= (noon[i - 1].estimated || noon[i - 1].scheduled).key));
+  // Every sample gate is on the map.
+  for (const f of board.flights) if (f.departure.gate) assert.ok(findGate(ctx, f.departure.gate, f.departure.terminal), f.departure.gate);
+});
+
+test('the Worker serves the board from its cache for the time set in BOARD_MINUTES', async () => {
+  let calls = 0, upstream = '';
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async url => { calls++; upstream = String(url); return new Response(JSON.stringify({ data: [record()] })); };
+  try {
+    const env = { AVIATIONSTACK_KEY: 'secret-key', BOARD_MINUTES: '15' };
+    const ask = () => worker.fetch(new Request('https://w.example/board', { headers: { Origin: 'https://suryaaketi.github.io' } }), env);
+    const body = await (await ask()).json();
+    assert.match(upstream, /dep_iata=ORD/); assert.doesNotMatch(upstream, /flight_iata/);
+    assert.equal(body.refreshMinutes, 15); assert.ok(body.fetchedAt); assert.equal(body.data.length, 1);
+    assert.ok(!JSON.stringify(body).includes('secret-key'));
+    await ask(); await ask(); assert.equal(calls, 1);
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'usage_limit_reached', message: 'x' } }), { status: 429 });
+    const fresh = await worker.fetch(new Request('https://w.example/flight?number=AA1'), env);
+    assert.equal(fresh.status, 429); assert.equal((await fresh.json()).error.code, 'usage_limit_reached');
+  } finally { globalThis.fetch = realFetch; }
+});

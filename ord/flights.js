@@ -134,6 +134,44 @@ export function sampleFlights(samples, now = chicagoNow()) {
   return (samples.flights || []).map(f => ({ ...f, flight_date: today, departure: { ...f.departure, scheduled: move(f.departure?.scheduled), estimated: move(f.departure?.estimated) } }));
 }
 
+// ---------- Departures board ----------
+const dayAfter = date => new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+// Sample board: clock times move to today, or to tomorrow once they are more than 30 minutes past.
+export function sampleBoard(samples, now = chicagoNow()) {
+  const today = now.slice(0, 10), tomorrow = dayAfter(today), nowMin = keyMinutes(now);
+  const move = (iso, date) => typeof iso === 'string' ? date + iso.slice(10) : iso;
+  return (samples.flights || []).map(f => {
+    const date = keyMinutes(`${today}T${f.departure.scheduled.slice(11, 16)}`) < nowMin - 30 ? tomorrow : today;
+    return { ...f, flight_date: date, departure: { ...f.departure, scheduled: move(f.departure.scheduled, date), estimated: move(f.departure.estimated, date) } };
+  });
+}
+// Rows for the board: O'Hare departures (codeshare copies removed), from 15 minutes ago to 24 hours
+// ahead, filtered by terminal and a search, in departure order.
+export function boardRows(items, now = chicagoNow(), { terminal = 'all', query = '', limit = 80 } = {}) {
+  const nowMin = keyMinutes(now), q = String(query || '').toLowerCase().replace(/\s+/g, '');
+  const at = f => keyMinutes((f.estimated || f.scheduled).key);
+  const seen = new Set();
+  return (items || []).map(normalizeRecord)
+    .filter(f => f.from === 'ORD' && f.scheduled && !f.operatedBy && f.iata)
+    .filter(f => { if (seen.has(f.iata + f.scheduled.key)) return false; seen.add(f.iata + f.scheduled.key); return true; })
+    .map(f => ({ ...f, label: normalizeFlight(f.iata)?.label || f.iata }))
+    .filter(f => at(f) >= nowMin - 15 && at(f) <= nowMin + 1440)
+    .filter(f => terminal === 'all' || f.terminal === terminal)
+    .filter(f => !q || [f.iata, f.airline, f.to.name, f.to.iata, f.gate].some(v => String(v || '').toLowerCase().replace(/\s+/g, '').includes(q)))
+    .sort((a, b) => at(a) - at(b) || a.iata.localeCompare(b.iata))
+    .slice(0, limit);
+}
+export async function fetchBoard(apiBase, { fetchImpl = fetch, signal } = {}) {
+  const url = new URL(apiBase);
+  url.pathname = url.pathname.replace(/\/?$/, '/board');
+  let response;
+  try { response = await fetchImpl(url.href, { signal, headers: { Accept: 'application/json' } }); }
+  catch (e) { if (e?.name === 'AbortError') throw e; throw new FlightError('offline'); }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.error) throw new FlightError(typeof body.error === 'string' ? body.error : body.error?.code || `http-${response.status}`);
+  return { data: Array.isArray(body.data) ? body.data : [], fetchedAt: body.fetchedAt || null, refreshMinutes: body.refreshMinutes || null };
+}
+
 // Plain-language reasons for each failure the Worker or Aviationstack can return.
 export function errorText(code) {
   const c = String(code || '');

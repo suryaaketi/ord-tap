@@ -11,9 +11,9 @@
   <title>ORD Tap · O'Hare wayfinding prototype</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=20261105">
+  <link rel="stylesheet" href="styles.css?v=20261105b">
   <script src="vendor/leaflet/leaflet.js" defer></script>
-  <script src="ord/app.js?v=20261105" type="module"></script>
+  <script src="ord/app.js?v=20261105b" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#places">Skip to destinations</a>
@@ -65,6 +65,7 @@
           <div class="ff-step" id="ff-result" hidden></div>
           <button class="ff-reopen" id="ff-reopen" type="button" hidden><span data-icon="plane"></span>Find my gate by flight number</button>
         </div>
+        <button class="board-entry" id="board-open" type="button"><span data-icon="board"></span><span><b>Departures board</b><small id="board-entry-sub">Next flights leaving O'Hare</small></span><span data-icon="arrow"></span></button>
         <div class="search-field"><span data-icon="search"></span><input type="search" id="search" placeholder="Gate (like C17), food, restroom" aria-label="Search gates and amenities" enterkeyhint="search" autocomplete="off" autocapitalize="characters"><kbd aria-hidden="true">/</kbd></div>
         <div class="categories" role="group" aria-label="Filter destinations">
           <button class="category active" data-category="all" aria-pressed="true" type="button">All</button>
@@ -100,6 +101,21 @@
         <div class="steps-heading" id="steps-heading"><h3>Directions</h3><span id="step-count"></span></div>
         <ol id="route-steps" class="route-steps directions"></ol>
         <div class="route-footnote"><span data-icon="info"></span><p id="route-footnote">Schematic route along mapped passenger corridors. Times assume 75 m a minute. Follow airport signs; gates, closures and construction change.</p></div>
+      </section>
+
+      <section class="board-view" id="board-view" hidden aria-labelledby="board-title">
+        <button class="back-button" id="board-back" type="button"><span data-icon="back"></span>All places</button>
+        <div class="board-head"><h2 id="board-title">Departures</h2><span class="board-live" id="board-live"></span></div>
+        <p class="board-note" id="board-note"></p>
+        <div class="categories board-terminals" role="group" aria-label="Filter by terminal">
+          <button class="category active" data-board-terminal="all" aria-pressed="true" type="button">All</button>
+          <button class="category" data-board-terminal="1" aria-pressed="false" type="button">T1</button>
+          <button class="category" data-board-terminal="2" aria-pressed="false" type="button">T2</button>
+          <button class="category" data-board-terminal="3" aria-pressed="false" type="button">T3</button>
+          <button class="category" data-board-terminal="5" aria-pressed="false" type="button">T5</button>
+        </div>
+        <div class="search-field"><span data-icon="search"></span><input type="search" id="board-search" placeholder="Flight, city or airline" aria-label="Search departures" enterkeyhint="search" autocomplete="off"></div>
+        <ol class="board-list" id="board-list" aria-live="polite"></ol>
       </section>
 
       <footer class="finder-footer"><span>ENGR 408 student prototype. Not an official Chicago Department of Aviation service.</span><small>Building outlines © OpenStreetMap contributors. Gates checked against the official O'Hare interactive map. Flight data, when set up, from Aviationstack: check the airport screens. <a href="sources.html">Sources</a></small></footer>

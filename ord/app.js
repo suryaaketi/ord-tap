@@ -1,9 +1,9 @@
-import { createSheet } from '../sheet.js?v=20261105';
-import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261105';
-import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, sampleFlights, errorText, clockText, chicagoNow } from './flights.js?v=20261105';
-import { FLIGHT_API } from './config.js?v=20261105';
-import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261105';
-import { metersBetween } from '../router.js?v=20261105';
+import { createSheet } from '../sheet.js?v=20261105b';
+import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261105b';
+import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, errorText, clockText, chicagoNow, sampleBoard, boardRows, fetchBoard } from './flights.js?v=20261105b';
+import { FLIGHT_API } from './config.js?v=20261105b';
+import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261105b';
+import { metersBetween } from '../router.js?v=20261105b';
 
 // Files carry ?v=… so a phone that opened an older version never mixes old and new code.
 // Change the date in index.html and these imports whenever you push a change.
@@ -37,6 +37,7 @@ const paths = {
   play:'<path d="M7 4.5v15l12-7.5-12-7.5Z" fill="currentColor"/>',
   pause:'<path d="M8 5v14m8-14v14"/>',
   locate:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>',
+  board:'<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9h4m-4 3h6m-6 3h3m6-6h1m-1 3h1m-1 3h1"/>',
   pin2:'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>'
 };
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.pin}</svg>`;
@@ -358,8 +359,7 @@ function changeFlightButton() {
 }
 async function records(iata) {
   if (SAMPLE_MODE) {
-    samples ??= await fetch('data/sample-flights.json', { cache: 'no-cache' }).then(r => r.json());
-    return sampleFlights(samples).filter(r => r.flight?.iata === iata);
+    return (await sampleRecords()).filter(r => r.flight?.iata === iata);
   }
   lookupController?.abort(); lookupController = new AbortController();
   return fetchFlights(FLIGHT_API, iata, { signal: lookupController.signal });
@@ -416,6 +416,90 @@ function renderFlightBanner() {
   const banner = $('flight-banner'), show = flightInfo?.gate && flightInfo.gate.id === destId;
   banner.hidden = !show;
   if (show) banner.replaceChildren(flightSummary(flightInfo.flight, flightInfo.gate, { compact: true }));
+}
+
+// ---------- Departures board ----------
+let boardData = null, boardTerminal = 'all', boardTimer = null, boardRaw = null;
+const BOARD_POLL_MS = 60_000;      // the Worker caches the board, so polling it costs no API requests
+async function sampleRecords() {
+  samples ??= await fetch('data/sample-flights.json', { cache: 'no-cache' }).then(r => r.json());
+  boardRaw ??= await fetch('data/sample-board.json', { cache: 'no-cache' }).then(r => r.json());
+  return sampleBoard({ flights: [...samples.flights, ...boardRaw.flights] });
+}
+async function loadBoard() {
+  if (SAMPLE_MODE) return { data: await sampleRecords(), fetchedAt: new Date().toISOString(), sample: true };
+  return fetchBoard(FLIGHT_API);
+}
+const shortAirport = name => String(name || '').replace(/\s+International( Airport)?$/i, '').replace(/ Airport$/i, '') || 'Destination';
+function boardStatus(f) {
+  if (f.status === 'cancelled') return ['Cancelled', 'bad'];
+  if (f.status === 'active') return ['Departed', 'info'];
+  if (['diverted', 'incident'].includes(f.status)) return [f.statusText, 'bad'];
+  if (f.delay >= 15 || f.estimated) return [f.delay ? `Delayed ${f.delay} min` : 'New time', 'warn'];
+  return ['On time', 'ok'];
+}
+function ago(iso) {
+  const min = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  return !Number.isFinite(min) ? '' : min < 1 ? 'just now' : min < 60 ? `${min} min ago` : `${Math.floor(min / 60)} h ${min % 60} min ago`;
+}
+function renderBoardNote() {
+  if (!boardData) return;
+  $('board-live').className = `board-live ${boardData.sample ? 'sample' : 'live'}`;
+  $('board-live').textContent = boardData.sample ? 'Sample' : 'Live';
+  $('board-note').textContent = boardData.sample
+    ? 'Sample departures for the demo, not real flights. Connect the flight service to show live departures.'
+    : `From Aviationstack, updated ${ago(boardData.fetchedAt)}${boardData.refreshMinutes ? `; refreshes every ${boardData.refreshMinutes >= 60 ? `${Math.round(boardData.refreshMinutes / 60)} h` : `${boardData.refreshMinutes} min`}` : ''}. Always check the airport screens.`;
+}
+function renderBoard() {
+  renderBoardNote();
+  const list = $('board-list'); list.replaceChildren();
+  if (!boardData) { list.append(el('li', 'empty-state', 'Loading departures…')); return; }
+  const rows = boardRows(boardData.data, chicagoNow(), { terminal: boardTerminal, query: $('board-search').value });
+  if (!rows.length) { list.append(el('li', 'empty-state', $('board-search').value ? 'No departures match. Try a city, airline or flight number.' : 'No departures in the next 24 hours for this filter.')); return; }
+  let lastDay = rows[0].scheduled.date;
+  for (const f of rows) {
+    const time = f.estimated || f.scheduled;
+    if (f.scheduled.date !== lastDay) { lastDay = f.scheduled.date; list.append(el('li', 'board-day', 'Tomorrow')); }
+    const li = el('li'), row = el('button', 'board-row'); row.type = 'button';
+    const t = el('span', 'b-time'); t.append(el('b', '', clockText(time).replace(/ [ap]\.m\.$/, '')), el('small', '', time.hour < 12 ? 'a.m.' : 'p.m.'));
+    if (f.estimated) t.append(el('s', '', clockText(f.scheduled).replace(/ [ap]\.m\.$/, '')));
+    const main = el('span', 'b-main'); main.append(el('b', '', shortAirport(f.to.name)), el('small', '', `${f.label} · ${f.airline}`));
+    const gate = findGate(ctx, f.gate, f.terminal), [stext, tone] = boardStatus(f);
+    const side = el('span', 'b-side');
+    side.append(el('span', `b-gate${f.gate ? '' : ' none'}`, f.gate ? `${f.terminal ? `T${f.terminal} · ` : ''}${f.gate}` : f.terminal ? `T${f.terminal} · gate TBA` : 'Gate TBA'), el('span', `status ${tone}`, stext));
+    const walkM = gate ? distanceTo(gate) : null;
+    if (walkM !== null) side.append(el('small', 'b-walk', `${Math.max(1, Math.ceil(walkM / 75))} min walk`));
+    row.append(t, main, side);
+    row.setAttribute('aria-label', `${f.label} to ${shortAirport(f.to.name)}, ${clockText(time)}, ${f.gate ? `gate ${f.gate}` : 'gate not posted'}, ${stext}`);
+    row.addEventListener('click', () => openBoardFlight(f, gate));
+    li.append(row); list.append(li);
+  }
+}
+async function refreshBoard() {
+  try { boardData = await loadBoard(); renderBoard(); }
+  catch (e) { renderBoardNote(); $('board-list').replaceChildren(el('li', 'empty-state', errorText(e.code).replace('Search for your gate number below instead.', 'Search for your gate on the main screen instead.'))); }
+}
+function openBoard() {
+  stopWalk(false);
+  $('places').hidden = true; $('route-view').hidden = true; $('board-view').hidden = false;
+  document.body.classList.add('board-open');
+  sheet.snap('large'); $('sheet').scrollTo({ top: 0 });
+  renderBoard(); refreshBoard();
+  clearInterval(boardTimer);
+  boardTimer = setInterval(() => { if (SAMPLE_MODE) renderBoard(); else refreshBoard(); }, BOARD_POLL_MS);
+}
+function closeBoard(toPlaces = true) {
+  clearInterval(boardTimer); boardTimer = null;
+  $('board-view').hidden = true; document.body.classList.remove('board-open');
+  if (toPlaces) { $('places').hidden = false; sheet.snap('medium'); }
+}
+function openBoardFlight(f, gate) {
+  flightIata = f.iata; tripKind = tripKind || 'depart';
+  flightInfo = gate ? { flight: f, gate, sample: !!boardData?.sample } : null;
+  $('flight-input').value = f.label;
+  if (gate) { closeBoard(false); selectDestination(gate.id); return; }
+  toast(f.gate ? `Gate ${f.gate} is not on this map yet.` : `No gate posted yet for ${f.label}. Check the departure screens.`);
+  if (f.terminal) { sheet.snap('peek'); showTerminal(f.terminal); }
 }
 
 // ---------- Walking the route: a simulation for demos, or live GPS at the airport ----------
@@ -603,14 +687,14 @@ function locateStart() {
 // ---------- Navigation between list and route ----------
 function selectDestination(id) {
   if (!ctx.byId.has(id)) return;
-  stopWalk(false);
+  stopWalk(false); if (!$('board-view').hidden) closeBoard(false);
   destId = id;
   $('places').hidden = true; $('route-view').hidden = false; document.body.classList.add('has-route');
   $('sheet').scrollTo({ top: 0, behavior: 'smooth' }); sheet.snap('medium');
   renderRoute(); updateAddress(); sheet.refresh(); fitTrip();
 }
 function showPlaces() {
-  stopWalk(false);
+  stopWalk(false); if (!$('board-view').hidden) closeBoard(false);
   destId = ''; trip = null;
   $('places').hidden = false; $('route-view').hidden = true; document.body.classList.remove('has-route');
   sheet.snap('medium'); drawTrip(); renderList(); updateAddress();
@@ -650,6 +734,16 @@ document.querySelectorAll('#walk-speed button').forEach(b => b.addEventListener(
   if (walk) walk.speed = Number(b.dataset.speed);
 }));
 $('locate').addEventListener('click', locateStart);
+$('board-open').addEventListener('click', openBoard);
+$('board-back').addEventListener('click', () => closeBoard(true));
+$('board-search').addEventListener('input', renderBoard);
+document.querySelectorAll('[data-board-terminal]').forEach(b => b.addEventListener('click', () => {
+  boardTerminal = b.dataset.boardTerminal;
+  const all = [...document.querySelectorAll('[data-board-terminal]')];
+  b.parentElement.style.setProperty('--segment', all.indexOf(b));
+  all.forEach(x => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-pressed', String(on)); });
+  renderBoard();
+}));
 $('ff-number').addEventListener('submit', e => { e.preventDefault(); $('flight-input').blur(); lookupFlight($('flight-input').value); });
 $('back').addEventListener('click', showPlaces);
 $('avoid-steps').addEventListener('change', e => { stopWalk(false); avoidSteps = e.target.checked; distancesFor = ''; renderRoute(); updateAddress(); fitTrip(); });

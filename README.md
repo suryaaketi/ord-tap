@@ -20,6 +20,14 @@ Links work when opened directly or refreshed. `start` is the sign; `to` is the d
 - **Live mode:** sign up for Aviationstack's free plan, deploy `worker/flight-worker.js` on Cloudflare with the key as a secret, and paste the Worker address into `ord/config.js`. Step-by-step: `worker/README.md`.
 - The free plan allows about 100 lookups a month. The Worker reuses each answer for 10 minutes. The key never goes in this repository.
 
+## Departures board
+
+**Departures board** on the main screen lists flights leaving O'Hare: time (with the new time if delayed), destination, flight, terminal and gate, status, and the walking time from your sign for Terminal 1 gates. You can filter by terminal and search by city, airline or flight. Tap a flight to walk to its gate.
+
+- **Sample mode (now):** 50 sample departures across the day, labeled "Sample".
+- **Live mode:** the Worker's `/board` fetches O'Hare departures from Aviationstack and caches them for `BOARD_MINUTES`. On the free plan (100 requests a month) the board updates about 3 times a day; real live updates need the paid Basic plan. See `worker/README.md`.
+- The board shows when it was last updated and always says to check the airport screens.
+
 ## Walking the route
 
 - **Simulate walk:** an orange dot walks the route at walking pace (sped up 1×, 5× or 20×). The banner shows the current direction, the floor (Upper Level or tunnel), and minutes left. No location is used, so it works anywhere, including in class.
@@ -29,7 +37,7 @@ Links work when opened directly or refreshed. `start` is the sign; `to` is the d
 
 ## Updating the site
 
-`index.html` and the imports at the top of `ord/app.js` add `?v=20261105` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
+`index.html` and the imports at the top of `ord/app.js` add `?v=20261105b` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
 
 ## Coverage
 

@@ -21,6 +21,17 @@ The Worker is free on Cloudflare's free plan. Aviationstack's free plan allows a
 
 Optional: create a KV namespace, then bind it to the Worker under the name `FLIGHTS`. Every Cloudflare server then shares one cache, which saves lookups.
 
+## 2b. Choose how often the departures board refreshes
+
+The board costs one Aviationstack request each time it refreshes, no matter how many people view it. Set a variable (plain text, not secret) named `BOARD_MINUTES` on the Worker:
+
+| Plan | Requests a month | `BOARD_MINUTES` | Board is |
+|---|---|---|---|
+| Free | 100 | `480` (the default) | updated 3 times a day, plus about 10 flight lookups. Bind the `FLIGHTS` KV namespace too: without it, Cloudflare's separate servers can each fetch the board and use up the 100 requests faster. |
+| Basic, $49.99/month | 10,000 | `10` | close to live |
+
+The site always shows when the board was last updated, so nobody mistakes an 8-hour-old board for live data.
+
 ## 3. Test it (uses one lookup)
 
 Open this in a browser, with your address:
@@ -29,7 +40,7 @@ Open this in a browser, with your address:
 https://ord-tap-flights.YOUR-NAME.workers.dev/flight?number=UA1234
 ```
 
-You should get `{"data":[...]}`. If you see `{"error":{"code":"invalid_access_key"...}}`, the secret is wrong.
+You should get `{"data":[...]}`. `/board` on the same address returns the departures board. If you see `{"error":{"code":"invalid_access_key"...}}`, the secret is wrong.
 
 ## 4. Turn it on in the site
 

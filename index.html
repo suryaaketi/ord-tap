@@ -11,9 +11,9 @@
   <title>ORD Tap · O'Hare wayfinding prototype</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20261105">
   <script src="vendor/leaflet/leaflet.js" defer></script>
-  <script src="ord/app.js" type="module"></script>
+  <script src="ord/app.js?v=20261105" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#places">Skip to destinations</a>
@@ -40,6 +40,7 @@
             <span id="origin-context">Choose the sign you are standing near. No location access needed.</span>
           </div>
         </div>
+        <button class="locate-link" id="locate" type="button"><span data-icon="locate"></span><span id="locate-text">Use my location (GPS)</span></button>
         <p class="inline-message" id="message" role="status" hidden></p>
       </section>
 
@@ -84,8 +85,18 @@
         <div class="facts" id="facts"></div>
         <div class="notice" id="notice" hidden></div>
         <div class="route-summary" id="route-summary" hidden><div><strong id="route-minutes"></strong><span>walk</span></div><div><strong id="route-distance"></strong><span id="route-levels">indoor route</span></div><span class="walking-badge" data-icon="walk"></span></div>
+        <div class="walk-actions" id="walk-actions"><button id="simulate" class="primary-button" type="button"><span data-icon="play"></span>Simulate walk</button><button id="live" class="secondary-button" type="button"><span data-icon="locate"></span>Live GPS</button></div>
+        <div class="walk-controls" id="walk-controls" hidden>
+          <div class="walk-progress" aria-hidden="true"><span id="walk-progress-bar"></span></div>
+          <div class="walk-row">
+            <div class="walk-speed" id="walk-speed" role="group" aria-label="Simulation speed"><button type="button" data-speed="1" aria-pressed="false">1×</button><button type="button" data-speed="5" aria-pressed="true" class="active">5×</button><button type="button" data-speed="20" aria-pressed="false">20×</button></div>
+            <button id="walk-pause" class="secondary-button icon-button" type="button" aria-label="Pause"><span data-icon="pause"></span></button>
+            <button id="walk-stop" class="stop-button" type="button">End</button>
+          </div>
+        </div>
+        <p class="walk-status" id="walk-status" role="status" hidden></p>
+        <div class="route-actions"><button id="share" class="secondary-button share-button" type="button"><span data-icon="share"></span>Share route</button><a id="official" class="secondary-button link-button" href="https://maps.ord.flychicago.com/" target="_blank" rel="noopener">Official map</a></div>
         <label class="stairs-toggle" id="steps-toggle" hidden><span>Avoid escalators</span><input type="checkbox" id="avoid-steps" role="switch"></label>
-        <div class="route-actions"><button id="share" class="primary-button" type="button"><span data-icon="share"></span>Share route</button><a id="official" class="secondary-button link-button" href="https://maps.ord.flychicago.com/" target="_blank" rel="noopener">Official map</a></div>
         <div class="steps-heading" id="steps-heading"><h3>Directions</h3><span id="step-count"></span></div>
         <ol id="route-steps" class="route-steps directions"></ol>
         <div class="route-footnote"><span data-icon="info"></span><p id="route-footnote">Schematic route along mapped passenger corridors. Times assume 75 m a minute. Follow airport signs; gates, closures and construction change.</p></div>
@@ -103,6 +114,7 @@
         <button type="button" data-view="3">T3</button>
         <button type="button" data-view="5">T5</button>
       </nav>
+      <div class="walk-hud" id="walk-hud" hidden><span class="walk-hud-symbol" id="walk-hud-icon"></span><div><span id="walk-hud-meta"></span><strong id="walk-hud-text"></strong><small id="walk-hud-detail"></small></div></div>
       <div class="map-controls"><button class="fit-map" id="fit-map" type="button" aria-label="Show the whole route" title="Fit map"><span data-icon="expand"></span></button></div>
       <div class="map-legend ord-legend"><span class="legend-start"></span>You are here<span class="legend-destination"></span>Destination<span class="legend-route"></span>Route<span class="legend-tunnel"></span>Tunnel level</div>
     </section>

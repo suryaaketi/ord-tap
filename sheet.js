@@ -27,7 +27,8 @@ export function createSheet(sheet, grab, { query = '(max-width:700px)', root = d
   // The lowest height still shows what matters right now: where the tag says you are, the Start button, or the walk controls.
   function peekVisible() {
     const body = document.body, route = document.getElementById('route-view');
-    const selector = body.classList.contains('walking') ? '#walk-controls' : route && !route.hidden ? '.route-actions' : '.origin-card';
+    const walkActions = sheet.querySelector('#walk-actions');
+    const selector = body.classList.contains('walking') ? '#walk-controls' : route && !route.hidden ? (walkActions && !walkActions.hidden ? '#walk-actions' : '.route-actions') : '.origin-card';
     const anchor = sheet.querySelector(selector);
     if (!anchor || !anchor.offsetParent) return 180;
     return anchor.getBoundingClientRect().bottom - sheet.getBoundingClientRect().top + sheet.scrollTop + 18;

@@ -20,6 +20,17 @@ Links work when opened directly or refreshed. `start` is the sign; `to` is the d
 - **Live mode:** sign up for Aviationstack's free plan, deploy `worker/flight-worker.js` on Cloudflare with the key as a secret, and paste the Worker address into `ord/config.js`. Step-by-step: `worker/README.md`.
 - The free plan allows about 100 lookups a month. The Worker reuses each answer for 10 minutes. The key never goes in this repository.
 
+## Walking the route
+
+- **Simulate walk:** an orange dot walks the route at walking pace (sped up 1×, 5× or 20×). The banner shows the current direction, the floor (Upper Level or tunnel), and minutes left. No location is used, so it works anywhere, including in class.
+- **Live GPS:** the blue dot follows your phone's GPS along the route, with a circle showing how unsure it is. It only works inside the airport boundary. Indoors, GPS drifts and cannot tell the Upper Level from the tunnel, so the dot is matched to the route; if you are more than about 45 m off the route, or the GPS is worse than ±120 m, it asks you to tap the nearest sign. A sign tap always wins.
+- **Use my location (GPS):** without a sign, picks the nearest Terminal 1 gate as your start.
+- The site never asks for location until one of these buttons is tapped, so a sign tap still opens with no permission prompt.
+
+## Updating the site
+
+`index.html` and the imports at the top of `ord/app.js` add `?v=20261105` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
+
 ## Coverage
 
 | Area | Status |
@@ -36,6 +47,7 @@ Terminal 1 routes were compared with the official interactive map's own walking 
 - `data/network.json`: the hand-drawn corridor lines for Terminal 1, the escalators and elevators between the Upper Level and the Pedestrian Tunnel Level, the schematic shapes, the transfer rules and the signs. Every item names its source.
 - `data/places.json`: 433 gates, restrooms, food places, amenities and transfer points, each with terminal, concourse, level, security side and source.
 - `data/outline.json`: airport boundary, building outlines and runways from OpenStreetMap (ODbL).
+- `ord/walk.js`: the simulated walk and live GPS following: route progress, snapping fixes to the route, the airport boundary check.
 - `ord/flights.js`: reads flight numbers, picks the right departure, and matches the gate to the map. `ord/config.js` holds the Worker address.
 - `worker/flight-worker.js`: the Cloudflare Worker that hides the Aviationstack key.
 - `ord/core.js`: builds the walking network, plans trips, writes directions, searches and applies the transfer-bus hours. No page code, so it runs under `npm test`.

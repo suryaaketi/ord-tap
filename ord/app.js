@@ -1,8 +1,12 @@
-import { createSheet } from '../sheet.js';
-import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js';
-import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, sampleFlights, errorText, clockText, chicagoNow } from './flights.js';
-import { FLIGHT_API } from './config.js';
+import { createSheet } from '../sheet.js?v=20261105';
+import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261105';
+import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, sampleFlights, errorText, clockText, chicagoNow } from './flights.js?v=20261105';
+import { FLIGHT_API } from './config.js?v=20261105';
+import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261105';
+import { metersBetween } from '../router.js?v=20261105';
 
+// Files carry ?v=… so a phone that opened an older version never mixes old and new code.
+// Change the date in index.html and these imports whenever you push a change.
 // ---------- Icons ----------
 const paths = {
   pin:'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
@@ -29,7 +33,11 @@ const paths = {
   external:'<path d="M14 3h7v7m0-7L11 13M10 4H4v16h16v-6"/>',
   info2:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-9v.1"/>',
   plane:'<path d="M10.5 21 13 13.5l6.5 3V14L13 10V4.5a1.5 1.5 0 0 0-3 0V10l-6.5 4v2.5l6.5-3L10.5 21Zm-2 0h5"/>',
-  connect:'<path d="M4 7h11l-3-3m3 3-3 3M20 17H9l3-3m-3 3 3 3"/>'
+  connect:'<path d="M4 7h11l-3-3m3 3-3 3M20 17H9l3-3m-3 3 3 3"/>',
+  play:'<path d="M7 4.5v15l12-7.5-12-7.5Z" fill="currentColor"/>',
+  pause:'<path d="M8 5v14m8-14v14"/>',
+  locate:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>',
+  pin2:'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>'
 };
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.pin}</svg>`;
 const $ = id => document.getElementById(id);
@@ -45,6 +53,7 @@ let startId = (params.get('start') || '').toLowerCase(), destId = (params.get('t
 let avoidSteps = params.get('steps') === 'avoid', filter = 'all', trip = null, distances = null, distancesFor = '';
 let flightIata = normalizeFlight(params.get('flight'))?.iata || '', tripKind = flightIata ? 'depart' : '', flightInfo = null, lookupController = null;
 const SAMPLE_MODE = !FLIGHT_API;
+let airport = null, walk = null, gpsLayer = null, locateWatch = null;
 const LIST_LIMIT = 50;
 
 function toast(text) { $('toast').textContent = text; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3200); }
@@ -256,6 +265,7 @@ function renderRoute() {
   const route = trip.route;
   $('route-summary').hidden = !route;
   $('steps-toggle').hidden = !route;
+  $('walk-actions').hidden = !route;
   $('avoid-steps').checked = avoidSteps;
   if (route) {
     $('route-minutes').textContent = `${route.minutes} min`;
@@ -348,7 +358,7 @@ function changeFlightButton() {
 }
 async function records(iata) {
   if (SAMPLE_MODE) {
-    samples ??= await fetch('data/sample-flights.json').then(r => r.json());
+    samples ??= await fetch('data/sample-flights.json', { cache: 'no-cache' }).then(r => r.json());
     return sampleFlights(samples).filter(r => r.flight?.iata === iata);
   }
   lookupController?.abort(); lookupController = new AbortController();
@@ -408,15 +418,199 @@ function renderFlightBanner() {
   if (show) banner.replaceChildren(flightSummary(flightInfo.flight, flightInfo.gate, { compact: true }));
 }
 
+// ---------- Walking the route: a simulation for demos, or live GPS at the airport ----------
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && 'wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener?.('release', () => { wakeLock = null; }); }
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => { if (walk && document.visibilityState === 'visible') keepAwake(true); });
+const levelLabel = level => ctx.network.levels[level]?.name || '';
+const kmFrom = point => metersBetween(point, AIRPORT_CENTER) / 1000;
+function walkerIcon(kind) { return L.divIcon({ className: 'ord-label', html: `<span class="walker ${kind}"><span></span></span>`, iconSize: [26, 26], iconAnchor: [13, 13] }); }
+function drawWalker(point, { raw = null, accuracy = 0, kind = 'sim' } = {}) {
+  if (!walk) return;
+  if (!walk.marker) walk.marker = L.marker(point, { icon: walkerIcon(kind), zIndexOffset: 3000, keyboard: false, interactive: false }).addTo(map);
+  else { walk.marker.setLatLng(point); walk.marker.setIcon(walkerIcon(kind)); }
+  if (raw) {
+    if (!walk.circle) walk.circle = L.circle(raw, { radius: accuracy, color: css('--route'), weight: 1, fillColor: css('--route'), fillOpacity: .12, interactive: false }).addTo(map);
+    else { walk.circle.setLatLng(raw); walk.circle.setRadius(accuracy); }
+  }
+}
+function followWalker(force = false) {
+  if (!walk?.follow || !walk.position) return;
+  const now = performance.now();
+  if (!force && now - (walk.lastPan || 0) < 300) return;
+  walk.lastPan = now;
+  centerOn(walk.position, Math.max(map.getZoom(), 18.25), false);
+}
+// One place renders progress for both modes.
+function showProgress(pos) {
+  const route = walk.route, m = walk.m, i = stepAt(route, m, pos.along), step = route.steps[i];
+  walk.position = pos.point;
+  const arrived = pos.remaining < (walk.mode === 'live' ? 12 : 0.5);
+  highlight(arrived ? route.steps.length - 1 : i);
+  const left = metersLeftInStep(route, m, pos.along, i);
+  $('walk-hud-icon').innerHTML = icon(arrived ? 'pin2' : step.maneuver);
+  $('walk-hud-meta').textContent = arrived ? 'Arrived' : `${step.kind === 'walk' ? `${formatMeters(left)} · ` : ''}${levelLabel(pos.level)}`;
+  $('walk-hud-text').textContent = arrived ? (trip.type === 'transfer' ? 'You are at the Terminal Transfer Bus' : `You have arrived at ${trip.dest.name}`) : step.text;
+  const next = route.steps[i + 1];
+  $('walk-hud-detail').textContent = arrived ? (trip.type === 'transfer' ? `Board here for Terminal 5, ${trip.dest.name}.` : 'Check the screens at the gate for boarding times.') : next ? `Then: ${next.text}` : step.detail || '';
+  $('route-minutes').textContent = arrived ? 'Here' : `${Math.max(1, Math.ceil(pos.remaining / 75))} min`;
+  $('route-distance').textContent = arrived ? '0 m' : formatMeters(pos.remaining);
+  $('route-levels').textContent = arrived ? 'arrived' : 'left';
+  $('walk-progress-bar').style.width = `${Math.min(100, pos.along / (m.total || 1) * 100)}%`;
+  if (arrived && !walk.arrived) {
+    walk.arrived = true; walk.paused = true;
+    $('walk-pause').hidden = true; $('walk-speed').hidden = true; $('walk-stop').textContent = 'Done';
+    try { navigator.vibrate?.([60, 40, 60]); } catch {}
+    if (walk.mode === 'live') walk.watch?.stop();
+  }
+}
+function beginWalk(mode) {
+  if (!trip?.route) return;
+  stopWalk(false);
+  const m = measureRoute(trip.route);
+  walk = { mode, route: trip.route, m, along: 0, speed: Number(document.querySelector('#walk-speed .active')?.dataset.speed || 5), paused: false, follow: true, arrived: false, off: 0 };
+  document.body.classList.add('walking');
+  $('walk-hud').hidden = false; $('walk-controls').hidden = false; $('walk-status').hidden = false;
+  $('walk-pause').hidden = mode !== 'sim'; setPauseButton(false); $('walk-stop').textContent = 'End';
+  $('walk-speed').hidden = mode !== 'sim';
+  keepAwake(true);
+  sheet.snap('peek');
+  if (mode === 'sim') {
+    $('walk-status').textContent = 'Simulation: the dot walks this route at a normal pace, sped up. No location is used.';
+    const pos = positionAt(walk.route, m, 0);
+    drawWalker(pos.point); showProgress(pos); followWalker(true);
+    let last = performance.now();
+    const tick = now => {
+      if (!walk || walk.mode !== 'sim') return;
+      const dt = Math.min(0.25, (now - last) / 1000); last = now;
+      if (!walk.paused) {
+        walk.along = Math.min(m.total, walk.along + dt * WALK_SPEED * walk.speed);
+        const p = positionAt(walk.route, m, walk.along);
+        drawWalker(p.point, { kind: ctx.network.levels[p.level]?.order === 1 ? 'sim tunnel' : 'sim' }); showProgress(p); followWalker();
+      }
+      walk.raf = requestAnimationFrame(tick);
+    };
+    walk.raf = requestAnimationFrame(tick);
+  } else {
+    $('walk-status').textContent = 'Finding your location…';
+    $('walk-hud-meta').textContent = 'Live GPS'; $('walk-hud-text').textContent = 'Finding your location…'; $('walk-hud-detail').textContent = 'Allow location access if your phone asks.';
+    $('walk-hud-icon').innerHTML = icon('locate');
+    walk.watch = new LocationWatch(navigator.geolocation, onLiveFix, onLiveState);
+    walk.watch.start();
+  }
+}
+function onLiveState(state) {
+  if (!walk || walk.mode !== 'live') return;
+  const text = {
+    locating: 'Finding your location…',
+    denied: 'Location access is off. Turn it on for this site, or use Simulate walk.',
+    unsupported: 'This browser cannot share its location. Use Simulate walk instead.',
+    timeout: 'No GPS signal yet. Indoors this is common: tap the nearest ORD Tap sign for an exact position.',
+    unavailable: 'Your location is not available right now. Tap the nearest ORD Tap sign instead.'
+  }[state];
+  if (text) { $('walk-status').textContent = text; if (state !== 'locating') { $('walk-hud-text').textContent = 'No GPS position'; $('walk-hud-detail').textContent = text; } }
+}
+function onLiveFix({ point, accuracy }) {
+  if (!walk || walk.mode !== 'live' || walk.arrived) return;
+  if (!insideAirport(airport?.boundary, point)) {
+    const km = kmFrom(point);
+    walk.watch.stop();
+    $('walk-hud-meta').textContent = 'Live GPS';
+    $('walk-hud-text').textContent = 'You are not at O\'Hare';
+    $('walk-hud-detail').textContent = `GPS puts you about ${km < 10 ? km.toFixed(1) : Math.round(km)} km away. Live mode works inside the airport; try Simulate walk.`;
+    $('walk-status').textContent = 'Live GPS stopped: you are outside the airport.';
+    return;
+  }
+  const accText = `±${Math.round(accuracy)} m`;
+  if (accuracy > USABLE_ACCURACY) {
+    drawWalker(point, { raw: point, accuracy, kind: 'live weak' });
+    $('walk-hud-meta').textContent = `Live GPS · ${accText}`;
+    $('walk-hud-text').textContent = 'GPS is too vague here';
+    $('walk-hud-detail').textContent = 'Tap the nearest ORD Tap sign for an exact position.';
+    $('walk-status').textContent = `GPS accuracy is ${accText}, too vague to follow the route indoors.`;
+    walk.position = point; followWalker();
+    return;
+  }
+  const snap = snapToRoute(walk.route, walk.m, point, walk.along);
+  if (snap.off > Math.max(45, accuracy)) {
+    walk.off++;
+    drawWalker(point, { raw: point, accuracy, kind: 'live weak' });
+    if (walk.off >= 3) {
+      $('walk-hud-text').textContent = 'You may be off the route';
+      $('walk-hud-detail').textContent = 'Tap the nearest ORD Tap sign to start again from there.';
+      $('walk-status').textContent = `About ${Math.round(snap.off)} m from the route (${accText}).`;
+    }
+    walk.position = point; followWalker();
+    return;
+  }
+  walk.off = 0;
+  walk.along = Math.max(walk.along - 25, snap.along);   // small steps back are allowed; GPS jitters
+  const pos = positionAt(walk.route, walk.m, walk.along);
+  drawWalker(pos.point, { raw: point, accuracy, kind: accuracy > GOOD_ACCURACY ? 'live weak' : 'live' });
+  showProgress(pos);
+  $('walk-status').textContent = `Live GPS ${accText}. GPS cannot tell the Upper Level from the tunnel; the dot assumes you are following the route.`;
+  if (!walk.arrived) $('walk-hud-meta').textContent = `Live GPS · ${accText} · ${levelLabel(pos.level)}`;
+  followWalker();
+}
+function stopWalk(refit = true) {
+  if (!walk) return;
+  cancelAnimationFrame(walk.raf); walk.watch?.stop();
+  walk.marker?.remove(); walk.circle?.remove();
+  walk = null;
+  keepAwake(false);
+  document.body.classList.remove('walking');
+  $('walk-hud').hidden = true; $('walk-controls').hidden = true; $('walk-status').hidden = true;
+  if (refit && destId) { renderRoute(); sheet.snap('medium'); fitTrip(); }
+}
+
+// "Use my location" without a route: pick the nearest Terminal 1 gate as the starting point.
+function locateStart() {
+  if (locateWatch) { locateWatch.stop(); locateWatch = null; }
+  $('locate-text').textContent = 'Finding your location…';
+  const done = text => { locateWatch?.stop(); locateWatch = null; $('locate-text').textContent = 'Use my location (GPS)'; if (text) message(text); };
+  let best = null;
+  const timer = setTimeout(() => best ? use(best) : done('No GPS position came through. Indoors this is common: choose or tap the nearest sign.'), 15000);
+  const use = fix => {
+    clearTimeout(timer); done();
+    gpsLayer?.remove(); gpsLayer = L.layerGroup().addTo(map);
+    L.circle(fix.point, { radius: fix.accuracy, color: css('--route'), weight: 1, fillOpacity: .1, interactive: false }).addTo(gpsLayer);
+    L.marker(fix.point, { icon: walkerIcon('live weak'), keyboard: false, interactive: false }).addTo(gpsLayer);
+    if (!insideAirport(airport?.boundary, fix.point)) { const km = kmFrom(fix.point); message(`GPS puts you about ${km < 10 ? km.toFixed(1) : Math.round(km)} km from O'Hare. At the airport, this picks your starting gate. For now, choose a sign or use Simulate walk on any route.`); return; }
+    const near = nearestGate(ctx, fix.point);
+    if (near && near.distance <= 120 && ctx.routable(near.place.id)) {
+      setStart(near.place.id);
+      message(`Starting near ${near.place.name} from GPS (±${Math.round(fix.accuracy)} m). GPS can be off indoors: tap a sign for an exact start.`);
+    } else if (near) {
+      centerOn(fix.point, 17.5);
+      message(`GPS puts you near ${near.place.name}, Terminal ${near.place.terminal} (±${Math.round(fix.accuracy)} m). Walking routes cover Terminal 1 only so far.`);
+    }
+  };
+  locateWatch = new LocationWatch(navigator.geolocation, fix => {
+    if (!best || fix.accuracy < best.accuracy) best = fix;
+    if (fix.accuracy <= GOOD_ACCURACY) use(fix);
+  }, state => {
+    if (state === 'denied') { clearTimeout(timer); done('Location access is off for this site. Choose the sign near you instead.'); }
+    if (state === 'unsupported') { clearTimeout(timer); done('This browser cannot share its location. Choose the sign near you instead.'); }
+  });
+  locateWatch.start();
+}
+
 // ---------- Navigation between list and route ----------
 function selectDestination(id) {
   if (!ctx.byId.has(id)) return;
+  stopWalk(false);
   destId = id;
   $('places').hidden = true; $('route-view').hidden = false; document.body.classList.add('has-route');
   $('sheet').scrollTo({ top: 0, behavior: 'smooth' }); sheet.snap('medium');
   renderRoute(); updateAddress(); sheet.refresh(); fitTrip();
 }
 function showPlaces() {
+  stopWalk(false);
   destId = ''; trip = null;
   $('places').hidden = false; $('route-view').hidden = true; document.body.classList.remove('has-route');
   sheet.snap('medium'); drawTrip(); renderList(); updateAddress();
@@ -424,8 +618,9 @@ function showPlaces() {
   if (start && ctx.routable(startId)) centerOn(start.point, 17.5); else showTerminal('all');
 }
 function setStart(id) {
+  stopWalk(false);
   startId = id; distancesFor = '';
-  renderHere(); updateAddress();
+  buildStartPicker(); renderHere(); updateAddress();
   if (destId) renderRoute(); else { renderList(); drawTrip(); }
   if (destId) fitTrip(); else if (ctx.routable(id)) centerOn(ctx.byId.get(id).point, 17.5);
 }
@@ -445,10 +640,20 @@ $('start-select').addEventListener('change', e => { if (e.target.value) setStart
 document.querySelectorAll('[data-trip]').forEach(b => b.addEventListener('click', () => chooseTrip(b.dataset.trip)));
 $('ff-back').addEventListener('click', () => showStep('trip'));
 $('ff-reopen').addEventListener('click', () => chooseTrip('depart'));
+$('simulate').addEventListener('click', () => beginWalk('sim'));
+$('live').addEventListener('click', () => beginWalk('live'));
+$('walk-stop').addEventListener('click', () => stopWalk(true));
+function setPauseButton(paused) { $('walk-pause').innerHTML = icon(paused ? 'play' : 'pause'); $('walk-pause').setAttribute('aria-label', paused ? 'Resume' : 'Pause'); }
+$('walk-pause').addEventListener('click', () => { if (!walk) return; walk.paused = !walk.paused; setPauseButton(walk.paused); });
+document.querySelectorAll('#walk-speed button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#walk-speed button').forEach(x => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-pressed', String(on)); });
+  if (walk) walk.speed = Number(b.dataset.speed);
+}));
+$('locate').addEventListener('click', locateStart);
 $('ff-number').addEventListener('submit', e => { e.preventDefault(); $('flight-input').blur(); lookupFlight($('flight-input').value); });
 $('back').addEventListener('click', showPlaces);
-$('avoid-steps').addEventListener('change', e => { avoidSteps = e.target.checked; distancesFor = ''; renderRoute(); updateAddress(); fitTrip(); });
-$('fit-map').addEventListener('click', () => destId ? fitTrip() : showTerminal('all'));
+$('avoid-steps').addEventListener('change', e => { stopWalk(false); avoidSteps = e.target.checked; distancesFor = ''; renderRoute(); updateAddress(); fitTrip(); });
+$('fit-map').addEventListener('click', () => { if (walk) { walk.follow = true; followWalker(true); } else if (destId) fitTrip(); else showTerminal('all'); });
 document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showTerminal(b.dataset.view)));
 $('share').addEventListener('click', async () => {
   const url = shareURL(), dest = ctx.byId.get(destId);
@@ -461,8 +666,9 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => loca
 // ---------- Start ----------
 async function init() {
   try {
-    const [network, places] = await Promise.all(['data/network.json', 'data/places.json'].map(p => fetch(p).then(r => { if (!r.ok) throw new Error(p); return r.json(); })));
-    const outline = await fetch('data/outline.json').then(r => r.ok ? r.json() : null).catch(() => null);
+    const [network, places] = await Promise.all(['data/network.json', 'data/places.json'].map(p => fetch(p, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(p); return r.json(); })));
+    const outline = await fetch('data/outline.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null);
+    airport = outline;
     ctx = createContext(network, places);
     buildStartPicker(); renderHere(); sheet.snap('medium', false);
     map = L.map('map', { zoomControl: false, preferCanvas: true, minZoom: 13.5, maxZoom: 20, zoomSnap: 0.25, attributionControl: true, maxBounds: [[41.945, -87.945], [42.013, -87.865]], maxBoundsViscosity: 0.8 }).setView([41.9768, -87.8990], 15);
@@ -470,6 +676,7 @@ async function init() {
     map.attributionControl.addAttribution(`${outline ? 'Outlines © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · ' : ''}<a href="sources.html">Sources</a>`);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     drawSchematic(outline); drawPlaces(); map.fire('zoomend');
+    map.on('dragstart', () => { if (walk) walk.follow = false; });
     if (startId && !ctx.byId.has(startId)) message('That sign link is not recognized. Choose the sign near you.');
     else if (startId && !ctx.routable(startId)) message(`${ctx.byId.get(startId).name} is in a map preview area. Choose a Terminal 1 sign to get routes.`);
     renderList();

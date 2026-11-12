@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createContext, planTrip } from '../ord/core.js';
-import { normalizeFlight, normalizeRecord, pickFlight, findGate, looksLikeGate, fetchFlights, sampleFlights, errorText, clockText, chicagoNow } from '../ord/flights.js';
+import { normalizeFlight, normalizeRecord, pickFlight, findGate, looksLikeGate, fetchFlights, fetchBoard, sampleFlights, errorText, clockText, chicagoNow } from '../ord/flights.js';
 import worker from '../worker/flight-worker.js';
 
 const read = p => JSON.parse(fs.readFileSync(new URL(p, import.meta.url)));
@@ -73,10 +73,20 @@ test('sample flights cover a route, a delay, no gate, another terminal, Terminal
 
 test('the browser asks the Worker, never Aviationstack, and errors become plain sentences', async () => {
   let asked = '';
-  const ok = async url => { asked = url; return new Response(JSON.stringify({ data: [record()] }), { status: 200 }); };
-  const data = await fetchFlights('https://ord-tap-flights.example.workers.dev', 'UA1234', { fetchImpl: ok });
+  const fetchedAt = '2026-11-04T18:00:00.000Z';
+  const ok = async url => {
+    asked = url;
+    return new Response(JSON.stringify({ data: [record()], fetchedAt, cachedFor: 10 }));
+  };
+  const snapshot = await fetchFlights('https://ord-tap-flights.example.workers.dev', 'UA1234', { fetchImpl: ok });
   assert.equal(asked, 'https://ord-tap-flights.example.workers.dev/flight?number=UA1234');
-  assert.equal(data.length, 1);
+  assert.equal(snapshot.data.length, 1);
+  assert.equal(snapshot.fetchedAt, fetchedAt);
+  assert.equal(snapshot.refreshMinutes, 10);
+  const board = await fetchBoard('https://ord-tap-flights.example.workers.dev', { fetchImpl: ok });
+  assert.equal(asked, 'https://ord-tap-flights.example.workers.dev/board');
+  assert.equal(board.fetchedAt, fetchedAt);
+  await assert.rejects(fetchBoard('https://x.example', { fetchImpl: async () => new Response('{}') }), e => e.code === 'invalid-response');
   const quota = async () => new Response(JSON.stringify({ error: { code: 'usage_limit_reached' } }), { status: 429 });
   await assert.rejects(fetchFlights('https://x.example', 'UA1', { fetchImpl: quota }), e => e.code === 'usage_limit_reached');
   await assert.rejects(fetchFlights('https://x.example', 'UA1', { fetchImpl: async () => { throw new TypeError('down'); } }), e => e.code === 'offline');
@@ -97,6 +107,8 @@ test('the Worker hides the key, checks the number and the website, and reuses an
     assert.match(upstream, /flight_iata=UA1234/); assert.match(upstream, /dep_iata=ORD/);
     assert.ok(!JSON.stringify(body).includes('secret-key'));
     assert.equal(body.data[0].departure.gate, 'C17'); assert.equal(body.data[0].aircraft, undefined);
+    assert.equal(r.headers.get('Cache-Control'), 'no-store');
+    assert.ok(body.fetchedAt);
     await ask('UA1234'); assert.equal(calls, 1, 'second ask comes from the cache');
     assert.equal((await ask('hello')).status, 400);
     assert.equal((await ask('UA1234', 'https://evil.example')).status, 403);
@@ -146,8 +158,13 @@ test('the Worker serves the board from its cache for the time set in BOARD_MINUT
     assert.equal(body.refreshMinutes, 15); assert.ok(body.fetchedAt); assert.equal(body.data.length, 1);
     assert.ok(!JSON.stringify(body).includes('secret-key'));
     await ask(); await ask(); assert.equal(calls, 1);
-    globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'usage_limit_reached', message: 'x' } }), { status: 429 });
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'usage_limit_reached', message: 'Do not return secret-key' } }), { status: 429 });
     const fresh = await worker.fetch(new Request('https://w.example/flight?number=AA1'), env);
-    assert.equal(fresh.status, 429); assert.equal((await fresh.json()).error.code, 'usage_limit_reached');
+    assert.equal(fresh.status, 429);
+    assert.deepEqual(await fresh.json(), { error: { code: 'usage_limit_reached' } });
+    globalThis.fetch = async () => new Response(JSON.stringify({ pagination: {} }));
+    const malformed = await worker.fetch(new Request('https://w.example/flight?number=AA2'), env);
+    assert.equal(malformed.status, 502);
+    assert.deepEqual(await malformed.json(), { error: 'invalid-upstream-response' });
   } finally { globalThis.fetch = realFetch; }
 });

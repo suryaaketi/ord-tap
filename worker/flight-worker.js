@@ -4,13 +4,8 @@
 //   GET /board                 →  { data: [...O'Hare departures...], fetchedAt, refreshMinutes }
 //
 // Setup is in worker/README.md. The key is stored as the secret AVIATIONSTACK_KEY, never in code.
-// Every answer is reused so many visitors cost one Aviationstack request:
-//   - one flight number: FLIGHT_MINUTES (10)
-//   - the departures board: BOARD_MINUTES, a variable you set in Cloudflare. The default, 480
-//     (8 hours), keeps the free plan's 100 requests a month enough for the board plus a few
-//     lookups. On the paid Basic plan (10,000 a month), 10 is a sensible value.
-// Bind a KV namespace called FLIGHTS to share the cache across Cloudflare's servers; without it
-// each server keeps its own memory, and the board may be fetched more often than planned.
+// Cache each flight number for 10 minutes and the board for BOARD_MINUTES (default 480).
+// A FLIGHTS KV namespace lets Worker instances share snapshots and reduce upstream requests.
 
 const ALLOWED_ORIGINS = ['https://suryaaketi.github.io', 'http://localhost:8000', 'http://127.0.0.1:8000'];
 const FLIGHT_MINUTES = 10;
@@ -47,9 +42,10 @@ async function aviationstack(env, params) {
   let upstream, json;
   try { upstream = await fetch(api.href, { headers: { Accept: 'application/json' } }); json = await upstream.json(); }
   catch { return { error: 'upstream-unreachable', status: 502 }; }
-  // Aviationstack reports problems (spent quota, bad key) as { error: { code, message } }.
-  if (json?.error) return { error: { code: json.error.code || 'upstream-error', message: json.error.message || '' }, status: upstream.status >= 400 ? upstream.status : 502 };
-  return { data: (json?.data || []).map(keep) };
+  // Upstream diagnostic messages may include request details. Pass back only the error code.
+  if (!upstream.ok || json?.error) return { error: { code: json?.error?.code || `http-${upstream.status}` }, status: upstream.ok ? 502 : upstream.status };
+  if (!Array.isArray(json?.data)) return { error: 'invalid-upstream-response', status: 502 };
+  return { data: json.data.filter(r => r?.departure?.iata === 'ORD').map(keep) };
 }
 
 export default {
@@ -61,7 +57,7 @@ export default {
       'Access-Control-Allow-Headers': 'Accept',
       'Vary': 'Origin'
     };
-    const reply = (body, status = 200, extra = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors, ...extra } });
+    const reply = (body, status = 200, extra = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cors, ...extra } });
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (request.method !== 'GET') return reply({ error: 'method-not-allowed' }, 405);

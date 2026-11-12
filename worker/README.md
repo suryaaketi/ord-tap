@@ -1,59 +1,24 @@
-# Flight lookup Worker
+# ORD Tap flight feed
 
-The site asks this Worker for a flight; the Worker asks Aviationstack using your key and sends back only the flight details. The key never appears on GitHub or in the page.
+ORD Tap uses a Cloudflare Worker for its departures board and flight lookup. The Worker fetches ORD records from Aviationstack and returns the time of the last check. The app links to [O’Hare’s official flight status](https://www.flychicago.com/OHare/myflight/flightsearch/Pages/default.aspx) until a Worker address is configured.
 
-The Worker is free on Cloudflare's free plan. Aviationstack's free plan allows about 100 lookups a month, and the Worker reuses each answer for 10 minutes.
+## 1. Get an Aviationstack API key
 
-## 1. Get the Aviationstack key
+Get a key in the [Aviationstack dashboard](https://aviationstack.com/). The [free tier](https://aviationstack.com/product) includes 100 requests per month and works for a limited class demo. Frequent updates for a public board require a feed with a larger quota and adequate flight coverage.
 
-1. Go to <https://aviationstack.com/product> and choose the **Free** plan.
-2. Sign up. Your **API Access Key** is on the dashboard after you log in.
-3. Do not paste the key into any file in this repository.
+## 2. Deploy the Worker
 
-## 2. Create the Worker
+1. In the [Cloudflare dashboard](https://dash.cloudflare.com/), open **Workers & Pages** and create a Worker from **Hello World** named `ord-tap-flights`.
+2. Open **Edit code**, replace the starter code with [flight-worker.js](flight-worker.js), and deploy.
+3. Under **Settings → Variables and Secrets**, add a **Secret** named `AVIATIONSTACK_KEY` and enter your key there.
+4. Copy the public `https://ord-tap-flights.YOUR-NAME.workers.dev` address. Share the Worker address when connecting the site. Keep the key in Cloudflare.
 
-1. Sign up at <https://dash.cloudflare.com/sign-up> (free).
-2. Open **Workers & Pages**, choose **Create**, then start from the **Hello World** Worker.
-3. Name it `ord-tap-flights` and deploy it.
-4. Choose **Edit code**, delete everything in the editor, paste in the whole of `worker/flight-worker.js`, and deploy again.
-5. Open the Worker's **Settings → Variables and Secrets**. Add a variable of type **Secret** named `AVIATIONSTACK_KEY` and paste your key as its value. Deploy if asked.
-6. Copy the Worker's address, which looks like `https://ord-tap-flights.YOUR-NAME.workers.dev`.
+The board checks Aviationstack when requested after `BOARD_MINUTES` elapses. The default is 480 minutes. The site checks for newer snapshots every minute while the board or flight result is open. Lookups cache each flight number for 10 minutes. A `FLIGHTS` KV namespace binding lets instances share snapshots. Concurrent requests from different Cloudflare locations can still use additional quota. For a supervised demo, set `BOARD_MINUTES` as a plain text variable to a shorter interval (minimum 5 minutes) and restore it after the demo.
 
-Optional: create a KV namespace, then bind it to the Worker under the name `FLIGHTS`. Every Cloudflare server then shares one cache, which saves lookups.
+## 3. Verify and connect
 
-## 2b. Choose how often the departures board refreshes
+1. Open `/board` on the Worker URL. Confirm it returns ORD records and a recent `fetchedAt`.
+2. Use a current flight number from those records in `/flight?number=UA1234`, replacing `UA1234` with that number. Compare the time and gate with the airline or O’Hare. Gate and status availability depend on the feed.
+3. Set `FLIGHT_API` in [ord/config.js](../ord/config.js) to the public Worker base URL. Commit and deploy the site. Verify the board and the same flight lookup from the published site.
 
-The board costs one Aviationstack request each time it refreshes, no matter how many people view it. Set a variable (plain text, not secret) named `BOARD_MINUTES` on the Worker:
-
-| Plan | Requests a month | `BOARD_MINUTES` | Board is |
-|---|---|---|---|
-| Free | 100 | `480` (the default) | updated 3 times a day, plus about 10 flight lookups. Bind the `FLIGHTS` KV namespace too: without it, Cloudflare's separate servers can each fetch the board and use up the 100 requests faster. |
-| Basic, $49.99/month | 10,000 | `10` | close to live |
-
-The site always shows when the board was last updated, so nobody mistakes an 8-hour-old board for live data.
-
-## 3. Test it (uses one lookup)
-
-Open this in a browser, with your address:
-
-```
-https://ord-tap-flights.YOUR-NAME.workers.dev/flight?number=UA1234
-```
-
-You should get `{"data":[...]}`. `/board` on the same address returns the departures board. If you see `{"error":{"code":"invalid_access_key"...}}`, the secret is wrong.
-
-## 4. Turn it on in the site
-
-Edit `ord/config.js`:
-
-```js
-export const FLIGHT_API = 'https://ord-tap-flights.YOUR-NAME.workers.dev';
-```
-
-Commit and push. The site now looks up real flights; until then it uses the sample flights in `data/sample-flights.json`.
-
-## Limits to know
-
-- **The Worker address is public.** Anyone who reads the site's code can call it. Calls from other websites are refused, but a script can still spend your 100 lookups. If that happens, reset the key on the Aviationstack dashboard and update the secret.
-- **Gates can be missing.** Aviationstack does not always have a gate. The site then names the terminal and tells the passenger to check the departure screens.
-- **Check the times once.** The site reads Aviationstack's departure times as Chicago clock time. Compare the first real lookup with the airline's app; if it is 5 or 6 hours off, tell your teammates before the demo.
+The board uses the first 100 returned records and filters them to upcoming departures. Use the official link for additional flights or current airline confirmation. The public Worker address can receive requests outside the app, so monitor the provider quota before enabling frequent checks.

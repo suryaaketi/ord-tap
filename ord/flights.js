@@ -3,7 +3,7 @@
 //
 // Live data comes from Aviationstack's /v1/flights endpoint through a small Cloudflare Worker
 // (worker/flight-worker.js) that keeps the API key off this public site. With no Worker link set
-// in ord/config.js the site uses data/sample-flights.json and labels every result as sample data.
+// in ord/config.js the site links to the official board. Sample data is opt-in via ?demo=1.
 
 // Airline code (two letters, or a letter and a digit) + 1 to 4 digits + an optional letter.
 const FLIGHT = /^([A-Z]{2}|[A-Z]\d|\d[A-Z])(\d{1,4})([A-Z]?)$/;
@@ -111,20 +111,29 @@ export class FlightError extends Error {
   constructor(code, message) { super(message || code); this.code = code; }
 }
 
-// Ask the Worker for one flight number. Returns Aviationstack's `data` array.
-export async function fetchFlights(apiBase, iata, { fetchImpl = fetch, signal } = {}) {
+async function fetchSnapshot(url, { fetchImpl = fetch, signal } = {}) {
+  let response;
+  try { response = await fetchImpl(url.href, { signal, headers: { Accept: 'application/json' }, cache: 'no-store' }); }
+  catch (e) { if (e?.name === 'AbortError') throw e; throw new FlightError('offline'); }
+  const body = await response.json().catch(() => null);
+  if (!response.ok || body?.error) {
+    const code = typeof body?.error === 'string' ? body.error : body?.error?.code || `http-${response.status}`;
+    throw new FlightError(code);
+  }
+  if (!Array.isArray(body?.data)) throw new FlightError('invalid-response');
+  return {
+    data: body.data,
+    fetchedAt: Number.isFinite(Date.parse(body.fetchedAt)) ? body.fetchedAt : null,
+    refreshMinutes: body.refreshMinutes ?? body.cachedFor ?? null
+  };
+}
+
+// Ask the Worker for the last checked departure details and the snapshot time.
+export function fetchFlights(apiBase, iata, options) {
   const url = new URL(apiBase);
   url.pathname = url.pathname.replace(/\/?$/, '/flight');
   url.searchParams.set('number', iata);
-  let response;
-  try { response = await fetchImpl(url.href, { signal, headers: { Accept: 'application/json' } }); }
-  catch (e) { if (e?.name === 'AbortError') throw e; throw new FlightError('offline', 'Could not reach the flight service.'); }
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body.error) {
-    const code = typeof body.error === 'string' ? body.error : body.error?.code || `http-${response.status}`;
-    throw new FlightError(code, body.error?.message || body.message);
-  }
-  return Array.isArray(body.data) ? body.data : [];
+  return fetchSnapshot(url, options);
 }
 
 // Sample flights keep their clock times but move to today's date, so "next departure" logic still works.
@@ -161,15 +170,10 @@ export function boardRows(items, now = chicagoNow(), { terminal = 'all', query =
     .sort((a, b) => at(a) - at(b) || a.iata.localeCompare(b.iata))
     .slice(0, limit);
 }
-export async function fetchBoard(apiBase, { fetchImpl = fetch, signal } = {}) {
+export function fetchBoard(apiBase, options) {
   const url = new URL(apiBase);
   url.pathname = url.pathname.replace(/\/?$/, '/board');
-  let response;
-  try { response = await fetchImpl(url.href, { signal, headers: { Accept: 'application/json' } }); }
-  catch (e) { if (e?.name === 'AbortError') throw e; throw new FlightError('offline'); }
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body.error) throw new FlightError(typeof body.error === 'string' ? body.error : body.error?.code || `http-${response.status}`);
-  return { data: Array.isArray(body.data) ? body.data : [], fetchedAt: body.fetchedAt || null, refreshMinutes: body.refreshMinutes || null };
+  return fetchSnapshot(url, options);
 }
 
 // Plain-language reasons for each failure the Worker or Aviationstack can return.

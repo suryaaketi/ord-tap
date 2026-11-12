@@ -10,23 +10,22 @@ Not an official Chicago Department of Aviation service.
 - NFC tag for the demo sign near Gate B6: `https://suryaaketi.github.io/ord-tap/?start=t1-b6`
 - Demo route to share: `https://suryaaketi.github.io/ord-tap/?start=t1-b6&to=t1-c17`
 - Printable signs: `https://suryaaketi.github.io/ord-tap/sign.html?start=t1-b6`
-- Flight demo: `https://suryaaketi.github.io/ord-tap/?start=t1-b6&flight=UA1234`
+- Flight demo: `https://suryaaketi.github.io/ord-tap/?start=t1-b6&flight=UA1234&demo=1`
 
-Links work when opened directly or refreshed. `start` is the sign; `to` is the destination; `flight` is a flight number, looked up again on every refresh so gate changes show up; `steps=avoid` uses elevators instead of escalators.
+Links work when opened directly or refreshed. `start` is the sign; `to` is the destination; `flight` is a flight number, checked again when you open the link; `steps=avoid` uses elevators instead of escalators.
 
 ## Flight lookup
 
-- **Sample mode (now):** `ord/config.js` has no Worker address, so the site uses `data/sample-flights.json` and labels every result "Sample flight, not live data". Try UA 1234 (Gate C17), UA 2210 (delayed, B14), UA 4567 (no gate yet), AA 2345 (Terminal 3), DL 3456 (Terminal 5, transfer bus) and UA 5678 (cancelled).
-- **Live mode:** sign up for Aviationstack's free plan, deploy `worker/flight-worker.js` on Cloudflare with the key as a secret, and paste the Worker address into `ord/config.js`. Step-by-step: `worker/README.md`.
-- The free plan allows about 100 lookups a month. The Worker reuses each answer for 10 minutes. The key never goes in this repository.
+- With no Worker address configured, the site links to the [official O’Hare flight search](https://www.flychicago.com/OHare/myflight/flightsearch/Pages/default.aspx). Search for the resulting gate on the map.
+- With Aviationstack connected, visible flight details check for updates once a minute. Each result shows when the Worker checked the feed. **Check for updates** also requests the latest available snapshot. Gate changes are flagged on the route. Setup is in [worker/README.md](worker/README.md).
+- Add `?demo=1` (or `&demo=1` on a sign link) to try labeled sample flights, including UA 1234 (Gate C17), UA 2210 (delayed, B14), UA 4567 (no gate), AA 2345 (Terminal 3), DL 3456 (Terminal 5, transfer bus) and UA 5678 (cancelled).
 
 ## Departures board
 
 **Departures board** on the main screen lists flights leaving O'Hare: time (with the new time if delayed), destination, flight, terminal and gate, status, and the walking time from your sign for Terminal 1 gates. You can filter by terminal and search by city, airline or flight. Tap a flight to walk to its gate.
 
-- **Sample mode (now):** 50 sample departures across the day, labeled "Sample".
-- **Live mode:** the Worker's `/board` fetches O'Hare departures from Aviationstack and caches them for `BOARD_MINUTES`. On the free plan (100 requests a month) the board updates about 3 times a day; real live updates need the paid Basic plan. See `worker/README.md`.
-- The board shows when it was last updated and always says to check the airport screens.
+- With Aviationstack connected, the board checks for a newer snapshot once a minute while open. The Worker's cache controls how often it can fetch new data. Rows come from the returned feed and may omit some departures. The official board link is always available.
+- In `?demo=1`, the board shows labeled sample departures.
 
 ## Walking the route
 
@@ -37,7 +36,7 @@ Links work when opened directly or refreshed. `start` is the sign; `to` is the d
 
 ## Updating the site
 
-`index.html` and the imports at the top of `ord/app.js` add `?v=20261105b` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
+`index.html` and the imports at the top of `ord/app.js` add a version query such as `?v=20261112b` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
 
 ## Coverage
 

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createContext, planTrip } from '../ord/core.js';
-import { normalizeFlight, normalizeRecord, pickFlight, findGate, looksLikeGate, fetchFlights, fetchBoard, sampleFlights, errorText, clockText, chicagoNow } from '../ord/flights.js';
+import { normalizeFlight, normalizeRecord, pickFlight, findGate, looksLikeGate, fetchFlights, fetchBoard, boardRows, sampleBoard, sampleFlights, errorText, clockText, chicagoNow } from '../ord/flights.js';
 import worker from '../worker/flight-worker.js';
 
 const read = p => JSON.parse(fs.readFileSync(new URL(p, import.meta.url)));
@@ -86,6 +86,8 @@ test('the browser asks the Worker, never Aviationstack, and errors become plain 
   const board = await fetchBoard('https://ord-tap-flights.example.workers.dev', { fetchImpl: ok });
   assert.equal(asked, 'https://ord-tap-flights.example.workers.dev/board');
   assert.equal(board.fetchedAt, fetchedAt);
+  await fetchBoard('https://ord-tap-flights.example.workers.dev', { direction: 'arrivals', fetchImpl: ok });
+  assert.equal(asked, 'https://ord-tap-flights.example.workers.dev/board?direction=arrivals');
   await assert.rejects(fetchBoard('https://x.example', { fetchImpl: async () => new Response('{}') }), e => e.code === 'invalid-response');
   const quota = async () => new Response(JSON.stringify({ error: { code: 'usage_limit_reached' } }), { status: 429 });
   await assert.rejects(fetchFlights('https://x.example', 'UA1', { fetchImpl: quota }), e => e.code === 'usage_limit_reached');
@@ -117,7 +119,6 @@ test('the Worker hides the key, checks the number and the website, and reuses an
 });
 
 test('the departures board lists upcoming O\'Hare departures in order, without codeshare copies', async () => {
-  const { boardRows, sampleBoard } = await import('../ord/flights.js');
   const at = (t, over = {}) => record({ departure: { scheduled: `2026-11-04T${t}:00+00:00`, estimated: null, ...over.departure }, top: over.top });
   const items = [
     at('19:00', { top: { flight: { iata: 'AA10', codeshared: null }, airline: { name: 'American Airlines' } }, departure: { terminal: '3', gate: 'K10' } }),
@@ -130,6 +131,7 @@ test('the departures board lists upcoming O\'Hare departures in order, without c
   const rows = boardRows(items, '2026-11-04T18:00');
   assert.deepEqual(rows.map(r => r.scheduled.key.slice(11)), ['17:50', '18:00', '19:00']);
   assert.ok(rows.every(r => r.iata !== 'LH9000'));
+  assert.deepEqual(boardRows(items, '2026-11-04T18:00', { query: 'LH-9000' }).map(r => r.iata), ['LH9000']);
   assert.equal(rows[0].label, 'UA 1234');
   assert.deepEqual(boardRows(items, '2026-11-04T18:00', { terminal: '3' }).map(r => r.iata), ['AA10']);
   assert.deepEqual(boardRows(items, '2026-11-04T18:00', { query: 'american' }).map(r => r.iata), ['AA10']);
@@ -146,10 +148,27 @@ test('the departures board lists upcoming O\'Hare departures in order, without c
   for (const f of board.flights) if (f.departure.gate) assert.ok(findGate(ctx, f.departure.gate, f.departure.terminal), f.departure.gate);
 });
 
+test('arrivals search uses the incoming flight, origin and O’Hare arrival gate', () => {
+  const now = '2026-11-04T12:00';
+  const data = sampleBoard(read('../data/sample-arrivals.json'), now, { direction: 'arrivals' });
+  const matches = query => boardRows(data, now, { direction: 'arrivals', query });
+  const [flight] = matches('UA-1762');
+  assert.equal(flight.iata, 'UA1762');
+  assert.deepEqual(flight.airport, { name: 'New York LaGuardia', iata: 'LGA' });
+  assert.equal(flight.gate, 'C19');
+  assert.equal(clockText(flight.scheduled), '1:20 p.m.');
+  assert.equal(clockText(flight.estimated), '1:42 p.m.');
+  assert.deepEqual(matches('New York'), matches('LGA'));
+  assert.equal(matches('no match').length, 0);
+  assert.equal(boardRows(data, now, { direction: 'arrivals', terminal: '3', query: 'LGA' }).length, 0);
+  assert.equal(boardRows(data, now).length, 0);
+});
+
 test('the Worker serves the board from its cache for the time set in BOARD_MINUTES', async () => {
   let calls = 0, upstream = '';
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async url => { calls++; upstream = String(url); return new Response(JSON.stringify({ data: [record()] })); };
+  const arrival = read('../data/sample-arrivals.json').flights[0];
+  globalThis.fetch = async url => { calls++; upstream = String(url); return new Response(JSON.stringify({ data: [record(), arrival] })); };
   try {
     const env = { AVIATIONSTACK_KEY: 'secret-key', BOARD_MINUTES: '15' };
     const ask = () => worker.fetch(new Request('https://w.example/board', { headers: { Origin: 'https://suryaaketi.github.io' } }), env);
@@ -158,6 +177,15 @@ test('the Worker serves the board from its cache for the time set in BOARD_MINUT
     assert.equal(body.refreshMinutes, 15); assert.ok(body.fetchedAt); assert.equal(body.data.length, 1);
     assert.ok(!JSON.stringify(body).includes('secret-key'));
     await ask(); await ask(); assert.equal(calls, 1);
+    const askArrivals = () => worker.fetch(new Request('https://w.example/board?direction=arrivals'), env);
+    const incoming = await (await askArrivals()).json();
+    assert.match(upstream, /arr_iata=ORD/);
+    assert.doesNotMatch(upstream, /dep_iata/);
+    assert.equal(incoming.data.length, 1);
+    assert.equal(incoming.data[0].arrival.gate, arrival.arrival.gate);
+    assert.equal(incoming.data[0].arrival.scheduled, arrival.arrival.scheduled);
+    await askArrivals(); await ask(); assert.equal(calls, 2);
+    assert.equal((await worker.fetch(new Request('https://w.example/board?direction=unknown'), env)).status, 400);
     globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'usage_limit_reached', message: 'Do not return secret-key' } }), { status: 429 });
     const fresh = await worker.fetch(new Request('https://w.example/flight?number=AA1'), env);
     assert.equal(fresh.status, 429);

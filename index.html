@@ -11,9 +11,9 @@
   <title>ORD Tap · O'Hare wayfinding prototype</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=20261112c">
+  <link rel="stylesheet" href="styles.css?v=20261112d">
   <script src="vendor/leaflet/leaflet.js" defer></script>
-  <script src="ord/app.js?v=20261112c" type="module"></script>
+  <script src="ord/app.js?v=20261112d" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#places">Skip to destinations</a>
@@ -65,7 +65,7 @@
           <div class="ff-step" id="ff-result" hidden></div>
           <button class="ff-reopen" id="ff-reopen" type="button" hidden><span data-icon="plane"></span><span id="ff-reopen-label">Find my gate by flight number</span></button>
         </div>
-        <button class="board-entry" id="board-open" type="button"><span data-icon="board"></span><span><b>Departures board</b><small id="board-entry-sub">Next flights leaving O'Hare</small></span><span data-icon="arrow"></span></button>
+        <button class="board-entry" id="board-open" type="button"><span data-icon="board"></span><span><b>Flight board</b><small>Search departures and arrivals</small></span><span data-icon="arrow"></span></button>
         <div class="search-field"><span data-icon="search"></span><input type="search" id="search" placeholder="Gate (like C17), food, restroom" aria-label="Search gates and amenities" enterkeyhint="search" autocomplete="off" autocapitalize="characters"><kbd aria-hidden="true">/</kbd></div>
         <div class="categories" role="group" aria-label="Filter destinations">
           <button class="category active" data-category="all" aria-pressed="true" type="button">All</button>
@@ -105,20 +105,34 @@
 
       <section class="board-view" id="board-view" hidden aria-labelledby="board-title">
         <button class="back-button" id="board-back" type="button"><span data-icon="back"></span>All places</button>
-        <div class="board-head"><h2 id="board-title">Departures</h2><span class="board-live" id="board-live"></span></div>
+        <div class="board-head">
+          <h2 id="board-title" tabindex="-1">O’Hare flights</h2>
+          <span class="board-source" id="board-source" hidden></span>
+          <button class="board-live-toggle" id="board-live-toggle" aria-expanded="false" aria-controls="board-widget" type="button" hidden>Live board</button>
+        </div>
         <p class="board-note" id="board-note"></p>
         <div id="board-controls">
-          <div class="categories board-terminals" role="group" aria-label="Filter by terminal">
-            <button class="category active" data-board-terminal="all" aria-pressed="true" type="button">All</button>
-            <button class="category" data-board-terminal="1" aria-pressed="false" type="button">T1</button>
-            <button class="category" data-board-terminal="2" aria-pressed="false" type="button">T2</button>
-            <button class="category" data-board-terminal="3" aria-pressed="false" type="button">T3</button>
-            <button class="category" data-board-terminal="5" aria-pressed="false" type="button">T5</button>
+          <div class="categories board-directions" role="group" aria-label="Flight direction">
+            <button class="category active" data-board-direction="departures" aria-pressed="true" type="button">Departures</button>
+            <button class="category" data-board-direction="arrivals" aria-pressed="false" type="button">Arrivals</button>
           </div>
-          <div class="search-field"><span data-icon="search"></span><input type="search" id="board-search" placeholder="Flight, city or airline" aria-label="Search departures" enterkeyhint="search" autocomplete="off"></div>
+          <div class="search-field">
+            <span data-icon="search"></span>
+            <input type="search" id="board-search" placeholder="Flight number or destination" aria-label="Search departures by flight number, destination or airline" enterkeyhint="search" autocomplete="off">
+          </div>
+          <div class="board-filters">
+            <p class="board-count" id="board-count" role="status"></p>
+            <select id="board-terminal" aria-label="Filter flights by terminal">
+              <option value="all">All terminals</option>
+              <option value="1">Terminal 1</option>
+              <option value="2">Terminal 2</option>
+              <option value="3">Terminal 3</option>
+              <option value="5">Terminal 5</option>
+            </select>
+          </div>
         </div>
-        <ol class="board-list" id="board-list" aria-live="polite"></ol>
-        <div id="board-widget"></div>
+        <ol class="board-list" id="board-list"></ol>
+        <div id="board-widget" hidden></div>
         <template id="board-widget-template">
           <iframe class="board-widget-frame" src="https://www.avionio.com/widget/en/ord/departures?style=3"
             title="Chicago O’Hare flight board by Avionio" width="100%" height="650" loading="lazy"

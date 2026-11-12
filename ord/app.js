@@ -1,9 +1,9 @@
-import { createSheet } from '../sheet.js?v=20261112c';
-import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261112c';
-import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, errorText, clockText, chicagoNow, sampleBoard, boardRows, fetchBoard } from './flights.js?v=20261112c';
-import { FLIGHT_API } from './config.js?v=20261112c';
-import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261112c';
-import { metersBetween } from '../router.js?v=20261112c';
+import { createSheet } from '../sheet.js?v=20261112d';
+import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261112d';
+import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, errorText, clockText, chicagoNow, sampleBoard, boardRows, fetchBoard } from './flights.js?v=20261112d';
+import { FLIGHT_API } from './config.js?v=20261112d';
+import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261112d';
+import { metersBetween } from '../router.js?v=20261112d';
 
 // Files carry ?v=… so a phone that opened an older version never mixes old and new code.
 // Change the date in index.html and these imports whenever you push a change.
@@ -56,6 +56,8 @@ let avoidSteps = params.get('steps') === 'avoid', filter = 'all', trip = null, d
 let flightIata = normalizeFlight(params.get('flight'))?.iata || '', tripKind = flightIata ? 'depart' : '', flightInfo = null, lookupController = null;
 const SAMPLE_MODE = params.get('demo') === '1';
 const FLIGHT_FEED_AVAILABLE = SAMPLE_MODE || Boolean(FLIGHT_API);
+const SAMPLE_BOARD = SAMPLE_MODE || !FLIGHT_API;
+const PROVIDER_BOARD_AVAILABLE = !SAMPLE_MODE && !FLIGHT_API;
 const OFFICIAL_FLIGHTS_URL = 'https://www.flychicago.com/OHare/myflight/flightsearch/Pages/default.aspx';
 let airport = null, walk = null, gpsLayer = null, locateWatch = null;
 const LIST_LIMIT = 50;
@@ -518,94 +520,129 @@ function refreshVisibleFlight() {
 }
 if (!SAMPLE_MODE && FLIGHT_API) setInterval(refreshVisibleFlight, FLIGHT_CHECK_MS);
 
-// ---------- Departures board ----------
-let boardData = null, boardTerminal = 'all', boardTimer = null, boardRaw = null;
-let boardRequest = null, boardError = null;
-async function sampleRecords() {
-  samples ??= await fetch('data/sample-flights.json', { cache: 'no-cache' }).then(r => r.json());
-  boardRaw ??= await fetch('data/sample-board.json', { cache: 'no-cache' }).then(r => r.json());
+// ---------- Flight board ----------
+const boards = {
+  departures: { snapshot: null, error: false },
+  arrivals: { snapshot: null, error: false }
+};
+let boardDirection = 'departures', boardTimer = null, boardRequest = null, providerBoardOpen = false;
+let boardRaw = null, arrivalsRaw = null;
+
+async function loadSamples(path) {
+  const response = await fetch(path, { cache: 'no-cache' });
+  if (!response.ok) throw new Error(`Could not load ${path}`);
+  return response.json();
+}
+async function sampleRecords(direction = 'departures') {
+  if (direction === 'arrivals') {
+    arrivalsRaw ??= await loadSamples('data/sample-arrivals.json');
+    return sampleBoard(arrivalsRaw, chicagoNow(), { direction });
+  }
+  samples ??= await loadSamples('data/sample-flights.json');
+  boardRaw ??= await loadSamples('data/sample-board.json');
   return sampleBoard({ flights: [...samples.flights, ...boardRaw.flights] });
 }
-async function loadBoard(signal) {
-  if (SAMPLE_MODE) return { data: await sampleRecords(), fetchedAt: new Date().toISOString(), sample: true };
-  return fetchBoard(FLIGHT_API, { signal });
+async function loadBoard(direction, signal) {
+  if (SAMPLE_BOARD) return { data: await sampleRecords(direction), sample: true };
+  return fetchBoard(FLIGHT_API, { direction, signal });
 }
-const shortAirport = name => String(name || '').replace(/\s+International( Airport)?$/i, '').replace(/ Airport$/i, '') || 'Destination';
-function departureStatus(f) {
-  if (f.status === 'active' || f.status === 'landed') return ['Departed', 'info'];
+const shortAirport = name => String(name || '').replace(/\s+International( Airport)?$/i, '').replace(/ Airport$/i, '');
+function departureStatus(f, direction = 'departures') {
+  if (f.status === 'landed') return direction === 'arrivals' ? ['Landed', 'ok'] : ['Departed', 'info'];
+  if (f.status === 'active') return direction === 'arrivals' ? ['En route', 'info'] : ['Departed', 'info'];
   if (['cancelled', 'diverted', 'incident'].includes(f.status)) return [f.statusText, 'bad'];
   if (f.delay > 0) return [`Delayed ${f.delay} min`, 'warn'];
   if (f.estimated) return ['New time', 'warn'];
   return [f.statusText, f.tone];
 }
-function renderBoardNote() {
-  const badge = $('board-live'), note = $('board-note');
-  const sample = boardData?.sample;
-  badge.className = `board-live${sample ? ' sample' : ''}`;
-  badge.textContent = sample ? 'Sample' : boardData && !boardError ? 'Aviationstack' : '';
+function renderBoardNote(snapshot, error) {
+  const badge = $('board-source'), note = $('board-note');
+  badge.classList.toggle('sample', SAMPLE_BOARD && !providerBoardOpen);
+  badge.textContent = SAMPLE_BOARD && !providerBoardOpen ? 'Sample data' : '';
   badge.hidden = !badge.textContent;
-  if (!FLIGHT_FEED_AVAILABLE) {
+  if (providerBoardOpen) {
     const source = el('a', '', 'Avionio');
     source.href = 'https://www.avionio.com/en/airport/ord/departures';
     source.target = '_blank';
     source.rel = 'noopener noreferrer';
-    note.replaceChildren('Flight data by ', source, '. Check your gate with your airline or at ', officialFlightLink(), '.');
+    note.replaceChildren('Live schedules from ', source, '. ', officialFlightLink());
     return;
   }
-  if (sample) {
-    note.textContent = 'Sample departures for the demo.';
-    return;
-  }
-  let description = '';
-  if (boardData) {
-    const interval = boardData.refreshMinutes;
-    const period = interval && interval % 60 === 0 ? `${interval / 60} h` : `${interval} min`;
-    description = `${snapshotTime(boardData.fetchedAt)}.${interval ? ` The feed is checked when requested after ${period}.` : ''} `;
-  }
-  if (boardError) description += 'The latest check failed. ';
-  note.replaceChildren(description, officialFlightLink());
+  const details = ['Chicago time'];
+  if (snapshot?.fetchedAt) details.push(snapshotTime(snapshot.fetchedAt));
+  if (error) details.push('Flight feed unavailable');
+  note.replaceChildren(details.join(' · '));
+  if (error) note.append(' · ', officialFlightLink());
 }
 function renderBoard() {
-  renderBoardNote();
-  const list = $('board-list'); list.replaceChildren();
-  if (!FLIGHT_FEED_AVAILABLE) return;
-  if (!boardData) {
-    list.append(el('li', 'empty-state', boardError ? 'Departures are currently unavailable.' : 'Loading departures…'));
+  const { snapshot, error } = boards[boardDirection];
+  renderBoardNote(snapshot, error);
+  const list = $('board-list'), count = $('board-count');
+  if (!snapshot) {
+    count.textContent = '';
+    list.replaceChildren(el('li', 'empty-state', error ? 'Flight information is currently unavailable.' : `Loading ${boardDirection}…`));
     return;
   }
-  const rows = boardRows(boardData.data, chicagoNow(), { terminal: boardTerminal, query: $('board-search').value });
-  if (!rows.length) { list.append(el('li', 'empty-state', $('board-search').value ? 'No departures match. Try a city, airline or flight number.' : 'No upcoming departures in this feed for this filter.')); return; }
-  let lastDay = rows[0].scheduled.date;
+  const now = chicagoNow(), query = $('board-search').value.trim();
+  const rows = boardRows(snapshot.data, now, { direction: boardDirection, terminal: $('board-terminal').value, query });
+  count.textContent = `${rows.length} ${rows.length === 1 ? 'flight' : 'flights'}`;
+  if (!rows.length) {
+    list.replaceChildren(el('li', 'empty-state', query ? 'No flights match your search.' : `No upcoming ${boardDirection} for this filter.`));
+    return;
+  }
+  const content = document.createDocumentFragment();
+  const isArrival = boardDirection === 'arrivals';
+  let lastDay = now.slice(0, 10);
   for (const f of rows) {
     const time = f.estimated || f.scheduled;
-    if (f.scheduled.date !== lastDay) { lastDay = f.scheduled.date; list.append(el('li', 'board-day', 'Tomorrow')); }
-    const li = el('li'), row = el('button', 'board-row'); row.type = 'button';
-    const t = el('span', 'b-time'); t.append(el('b', '', clockText(time).replace(/ [ap]\.m\.$/, '')), el('small', '', time.hour < 12 ? 'a.m.' : 'p.m.'));
-    if (f.estimated) t.append(el('s', '', clockText(f.scheduled).replace(/ [ap]\.m\.$/, '')));
-    const main = el('span', 'b-main'); main.append(el('b', '', shortAirport(f.to.name)), el('small', '', `${f.label} · ${f.airline}`));
-    const gate = findGate(ctx, f.gate, f.terminal), [stext, tone] = departureStatus(f);
+    if (time.date !== lastDay) {
+      lastDay = time.date;
+      const day = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+      content.append(el('li', 'board-day', day.format(new Date(`${lastDay}T00:00:00Z`))));
+    }
+    const city = shortAirport(f.airport.name) || f.airport.iata || (isArrival ? 'Origin unavailable' : 'Destination unavailable');
+    const [status, tone] = departureStatus(f, boardDirection);
+    const gate = isArrival ? null : findGate(ctx, f.gate, f.terminal);
+    const li = el('li'), row = el(isArrival ? 'div' : 'button', 'board-row');
+    const clock = el('span', 'b-time');
+    clock.append(el('b', '', clockText(time).replace(/ [ap]\.m\.$/, '')), el('small', '', time.hour < 12 ? 'AM' : 'PM'));
+    if (f.estimated) clock.append(el('s', '', clockText(f.scheduled).replace(/ [ap]\.m\.$/, '')));
+    const main = el('span', 'b-main'), destination = el('span', 'b-city');
+    destination.append(el('b', '', city));
+    if (f.airport.name && f.airport.iata) destination.append(el('small', 'b-code', f.airport.iata));
+    main.append(destination, el('small', 'b-flight', [f.label, f.airline].filter(Boolean).join(' · ')));
     const side = el('span', 'b-side');
-    side.append(el('span', `b-gate${f.gate ? '' : ' none'}`, f.gate ? `${f.terminal ? `T${f.terminal} · ` : ''}${f.gate}` : f.terminal ? `T${f.terminal} · gate TBA` : 'Gate TBA'), el('span', `status ${tone}`, stext));
+    const gateLabel = f.gate ? `Gate ${f.gate}` : f.terminal ? `Terminal ${f.terminal}` : 'Gate pending';
+    side.append(el('span', `b-gate${f.gate ? '' : ' none'}`, gateLabel), el('span', `status ${tone}`, status));
     const walkM = gate ? distanceTo(gate) : null;
     if (walkM !== null) side.append(el('small', 'b-walk', `${Math.max(1, Math.ceil(walkM / 75))} min walk`));
-    row.append(t, main, side);
-    row.setAttribute('aria-label', `${f.label} to ${shortAirport(f.to.name)}, ${clockText(time)}, ${f.gate ? `gate ${f.gate}` : 'gate not posted'}, ${stext}`);
-    row.addEventListener('click', () => openBoardFlight(f, gate));
-    li.append(row); list.append(li);
+    row.append(clock, main, side);
+    if (!isArrival) {
+      row.type = 'button';
+      row.setAttribute('aria-label', `${f.label} to ${city}, ${clockText(time)}, ${gateLabel}, ${status}`);
+      row.addEventListener('click', () => openBoardFlight(f, gate, snapshot));
+    }
+    li.append(row); content.append(li);
   }
+  list.replaceChildren(content);
+}
+function cancelBoardRequest() {
+  boardRequest?.abort();
+  boardRequest = null;
 }
 async function refreshBoard() {
-  if (boardRequest || document.hidden) return;
-  const controller = new AbortController();
+  if (boardRequest || document.hidden || providerBoardOpen) return;
+  const controller = new AbortController(), direction = boardDirection;
+  const board = boards[direction];
   boardRequest = controller;
   try {
-    const snapshot = await loadBoard(controller.signal);
+    const snapshot = await loadBoard(direction, controller.signal);
     if (boardRequest !== controller) return;
-    boardData = snapshot;
-    boardError = null;
-  } catch (e) {
+    board.snapshot = snapshot;
+    board.error = false;
+  } catch {
     if (boardRequest !== controller) return;
-    boardError = e;
+    board.error = true;
   } finally {
     if (boardRequest === controller) {
       boardRequest = null;
@@ -613,33 +650,52 @@ async function refreshBoard() {
     }
   }
 }
+function showProviderBoard(open) {
+  const widget = $('board-widget'), toggle = $('board-live-toggle');
+  providerBoardOpen = open;
+  widget.hidden = !open;
+  $('board-controls').hidden = open;
+  $('board-list').hidden = open;
+  toggle.textContent = open ? 'Back to search' : 'Live board';
+  toggle.setAttribute('aria-expanded', String(open));
+  if (open) {
+    cancelBoardRequest();
+    widget.replaceChildren($('board-widget-template').content.cloneNode(true));
+    renderBoardNote();
+  } else {
+    widget.replaceChildren();
+    renderBoard();
+    refreshBoard();
+  }
+}
 function openBoard() {
   stopWalk(false);
   $('places').hidden = true; $('route-view').hidden = true; $('board-view').hidden = false;
   document.body.classList.add('board-open');
-  $('board-controls').hidden = !FLIGHT_FEED_AVAILABLE;
+  $('board-live-toggle').hidden = !PROVIDER_BOARD_AVAILABLE;
   sheet.snap('large'); $('sheet').scrollTo({ top: 0 });
-  renderBoard();
-  if (!FLIGHT_FEED_AVAILABLE) {
-    $('board-widget').replaceChildren($('board-widget-template').content.cloneNode(true));
-    return;
-  }
-  refreshBoard();
+  $('board-title').focus({ preventScroll: true });
+  showProviderBoard(false);
   clearInterval(boardTimer);
   boardTimer = setInterval(refreshBoard, FLIGHT_CHECK_MS);
 }
 function closeBoard(toPlaces = true) {
   clearInterval(boardTimer); boardTimer = null;
-  boardRequest?.abort(); boardRequest = null;
+  cancelBoardRequest();
   $('board-widget').replaceChildren();
   $('board-view').hidden = true; document.body.classList.remove('board-open');
   if (toPlaces) { $('places').hidden = false; sheet.snap('medium'); }
 }
-function openBoardFlight(f, gate) {
-  flightIata = f.iata; tripKind = tripKind || 'depart';
-  flightInfo = gate ? { flight: f, gate, sample: Boolean(boardData?.sample), fetchedAt: boardData?.fetchedAt, routeGateId: gate.id } : null;
-  $('flight-input').value = f.label;
-  if (gate) { closeBoard(false); selectDestination(gate.id); return; }
+function openBoardFlight(f, gate, snapshot) {
+  if (gate) {
+    flightIata = snapshot.sample && !SAMPLE_MODE ? '' : f.iata;
+    tripKind = tripKind || 'depart';
+    flightInfo = { flight: f, gate, sample: Boolean(snapshot.sample), fetchedAt: snapshot.fetchedAt, routeGateId: gate.id };
+    $('flight-input').value = f.label;
+    closeBoard(false);
+    selectDestination(gate.id);
+    return;
+  }
   toast(f.gate ? `Gate ${f.gate} is not on this map yet.` : `No gate posted yet for ${f.label}. Check the departure screens.`);
   if (f.terminal) { sheet.snap('peek'); showTerminal(f.terminal); }
 }
@@ -899,12 +955,24 @@ $('locate').addEventListener('click', locateStart);
 $('board-open').addEventListener('click', openBoard);
 $('board-back').addEventListener('click', () => closeBoard(true));
 $('board-search').addEventListener('input', renderBoard);
-document.querySelectorAll('[data-board-terminal]').forEach(b => b.addEventListener('click', () => {
-  boardTerminal = b.dataset.boardTerminal;
-  const all = [...document.querySelectorAll('[data-board-terminal]')];
-  b.parentElement.style.setProperty('--segment', all.indexOf(b));
-  all.forEach(x => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-pressed', String(on)); });
+$('board-terminal').addEventListener('change', renderBoard);
+$('board-live-toggle').addEventListener('click', () => showProviderBoard(!providerBoardOpen));
+const directionButtons = [...document.querySelectorAll('[data-board-direction]')];
+directionButtons.forEach(button => button.addEventListener('click', () => {
+  if (boardDirection === button.dataset.boardDirection) return;
+  cancelBoardRequest();
+  boardDirection = button.dataset.boardDirection;
+  button.parentElement.style.setProperty('--segment', directionButtons.indexOf(button));
+  directionButtons.forEach(other => {
+    const selected = other === button;
+    other.classList.toggle('active', selected);
+    other.setAttribute('aria-pressed', String(selected));
+  });
+  const otherAirport = boardDirection === 'arrivals' ? 'origin' : 'destination';
+  $('board-search').placeholder = `Flight number or ${otherAirport}`;
+  $('board-search').setAttribute('aria-label', `Search ${boardDirection} by flight number, ${otherAirport} or airline`);
   renderBoard();
+  refreshBoard();
 }));
 $('ff-number').addEventListener('submit', e => { e.preventDefault(); $('flight-input').blur(); lookupFlight($('flight-input').value); });
 $('back').addEventListener('click', showPlaces);
@@ -927,11 +995,7 @@ async function init() {
     airport = outline;
     ctx = createContext(network, places);
     buildStartPicker(); renderHere(); sheet.snap('medium', false);
-    if (!FLIGHT_FEED_AVAILABLE) {
-      $('board-entry-sub').textContent = 'Live departures and arrivals';
-      $('board-title').textContent = 'O’Hare flights';
-      $('ff-reopen-label').textContent = 'View live flights';
-    }
+    if (!FLIGHT_FEED_AVAILABLE) $('ff-reopen-label').textContent = 'View flight board';
     map = L.map('map', { zoomControl: false, preferCanvas: true, minZoom: 13.5, maxZoom: 20, zoomSnap: 0.25, attributionControl: true, maxBounds: [[41.945, -87.945], [42.013, -87.865]], maxBoundsViscosity: 0.8 }).setView([41.9768, -87.8990], 15);
     map.attributionControl.setPrefix(false);
     map.attributionControl.addAttribution(`${outline ? 'Outlines © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · ' : ''}<a href="sources.html">Sources</a>`);

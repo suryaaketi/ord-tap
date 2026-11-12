@@ -1,7 +1,7 @@
 // ORD Tap flight data: a Cloudflare Worker that keeps the Aviationstack key off the public site.
 //
 //   GET /flight?number=UA1234  →  { data: [...records for that flight leaving ORD...] }
-//   GET /board                 →  { data: [...O'Hare departures...], fetchedAt, refreshMinutes }
+//   GET /board[?direction=arrivals] → { data: [...O'Hare flights...], fetchedAt, refreshMinutes }
 //
 // Setup is in worker/README.md. The key is stored as the secret AVIATIONSTACK_KEY, never in code.
 // Cache each flight number for 10 minutes and the board for BOARD_MINUTES (default 480).
@@ -13,10 +13,13 @@ const FLIGHT = /^([A-Z]{2}|[A-Z]\d|\d[A-Z])(\d{1,4})([A-Z]?)$/;
 const memory = new Map();
 
 // Pass on only what the site shows; nothing here identifies the key or the account.
+const keepAirport = airport => airport && {
+  airport: airport.airport, iata: airport.iata, terminal: airport.terminal, gate: airport.gate,
+  delay: airport.delay, scheduled: airport.scheduled, estimated: airport.estimated, actual: airport.actual
+};
 const keep = r => ({
   flight_date: r.flight_date, flight_status: r.flight_status,
-  departure: r.departure && { airport: r.departure.airport, iata: r.departure.iata, terminal: r.departure.terminal, gate: r.departure.gate, delay: r.departure.delay, scheduled: r.departure.scheduled, estimated: r.departure.estimated, actual: r.departure.actual },
-  arrival: r.arrival && { airport: r.arrival.airport, iata: r.arrival.iata },
+  departure: keepAirport(r.departure), arrival: keepAirport(r.arrival),
   airline: r.airline && { name: r.airline.name, iata: r.airline.iata },
   flight: r.flight && { number: r.flight.number, iata: r.flight.iata, codeshared: r.flight.codeshared ? { airline_name: r.flight.codeshared.airline_name, flight_iata: r.flight.codeshared.flight_iata } : null }
 });
@@ -35,7 +38,7 @@ async function cached(env, key, minutes, load) {
   return { body, source: 'upstream' };
 }
 
-async function aviationstack(env, params) {
+async function aviationstack(env, params, airportSide = 'departure') {
   const api = new URL('https://api.aviationstack.com/v1/flights');
   api.searchParams.set('access_key', env.AVIATIONSTACK_KEY);
   for (const [k, v] of Object.entries(params)) api.searchParams.set(k, v);
@@ -45,7 +48,7 @@ async function aviationstack(env, params) {
   // Upstream diagnostic messages may include request details. Pass back only the error code.
   if (!upstream.ok || json?.error) return { error: { code: json?.error?.code || `http-${upstream.status}` }, status: upstream.ok ? 502 : upstream.status };
   if (!Array.isArray(json?.data)) return { error: 'invalid-upstream-response', status: 502 };
-  return { data: json.data.filter(r => r?.departure?.iata === 'ORD').map(keep) };
+  return { data: json.data.filter(r => r?.[airportSide]?.iata === 'ORD').map(keep) };
 }
 
 export default {
@@ -69,9 +72,13 @@ export default {
     if (!env.AVIATIONSTACK_KEY) return reply({ error: 'missing_access_key' }, 500);
 
     if (url.pathname === '/board') {
+      const direction = url.searchParams.get('direction') || 'departures';
+      if (!['departures', 'arrivals'].includes(direction)) return reply({ error: 'bad-direction' }, 400);
       const minutes = Math.max(5, Number(env.BOARD_MINUTES) || 480);
-      const { body, source } = await cached(env, 'board:ORD', minutes, async () => {
-        const r = await aviationstack(env, { dep_iata: 'ORD', limit: '100' });
+      const isArrival = direction === 'arrivals';
+      const filter = isArrival ? 'arr_iata' : 'dep_iata';
+      const { body, source } = await cached(env, `board:ORD:${direction}`, minutes, async () => {
+        const r = await aviationstack(env, { [filter]: 'ORD', limit: '100' }, isArrival ? 'arrival' : 'departure');
         return r.error ? r : { data: r.data, fetchedAt: new Date().toISOString(), refreshMinutes: minutes };
       });
       if (body.error) return reply({ error: body.error }, body.status || 502);

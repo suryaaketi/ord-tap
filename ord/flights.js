@@ -3,7 +3,7 @@
 //
 // Live data comes from Aviationstack's /v1/flights endpoint through a small Cloudflare Worker
 // (worker/flight-worker.js) that keeps the API key off this public site. With no Worker link set
-// in ord/config.js the site links to the official board. Sample data is opt-in via ?demo=1.
+// in ord/config.js the searchable board displays clearly labeled sample data.
 
 // Airline code (two letters, or a letter and a digit) + 1 to 4 digits + an optional letter.
 const FLIGHT = /^([A-Z]{2}|[A-Z]\d|\d[A-Z])(\d{1,4})([A-Z]?)$/;
@@ -44,20 +44,23 @@ const STATUS = {
 };
 
 // One Aviationstack record → the fields this site shows. Missing fields stay empty rather than guessed.
-export function normalizeRecord(item) {
+export function normalizeRecord(item, direction = 'departures') {
   const dep = item?.departure || {}, arr = item?.arrival || {}, code = item?.flight?.codeshared;
-  const scheduled = wall(dep.scheduled), estimated = wall(dep.estimated);
-  const delay = Number.isFinite(dep.delay) ? dep.delay : null;
+  const isArrival = direction === 'arrivals';
+  const local = isArrival ? arr : dep, remote = isArrival ? dep : arr;
+  const scheduled = wall(local.scheduled), estimated = wall(local.estimated);
+  const delay = Number.isFinite(local.delay) ? local.delay : null;
   const status = STATUS[item?.flight_status] || { text: item?.flight_status ? String(item.flight_status) : 'Status unknown', tone: 'info' };
   return {
     iata: String(item?.flight?.iata || '').toUpperCase(),
     airline: item?.airline?.name || '',
     from: String(dep.iata || '').toUpperCase(),
     to: { name: arr.airport || '', iata: String(arr.iata || '').toUpperCase() },
+    airport: { name: remote.airport || '', iata: String(remote.iata || '').toUpperCase() },
     status: item?.flight_status || '', statusText: status.text, tone: delay >= 15 && status.tone === 'ok' ? 'warn' : status.tone,
     scheduled, estimated: estimated && estimated.key !== scheduled?.key ? estimated : null, delay,
-    terminal: dep.terminal ? String(dep.terminal).replace(/^T(?:erminal)?\s*/i, '') : '',
-    gate: dep.gate ? String(dep.gate).toUpperCase().replace(/^GATE\s*/, '') : '',
+    terminal: local.terminal ? String(local.terminal).replace(/^T(?:erminal)?\s*/i, '') : '',
+    gate: local.gate ? String(local.gate).toUpperCase().replace(/^GATE\s*/, '') : '',
     operatedBy: code ? { airline: code.airline_name || '', iata: String(code.flight_iata || '').toUpperCase() } : null
   };
 }
@@ -143,36 +146,41 @@ export function sampleFlights(samples, now = chicagoNow()) {
   return (samples.flights || []).map(f => ({ ...f, flight_date: today, departure: { ...f.departure, scheduled: move(f.departure?.scheduled), estimated: move(f.departure?.estimated) } }));
 }
 
-// ---------- Departures board ----------
+// ---------- Flight board ----------
 const dayAfter = date => new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
-// Sample board: clock times move to today, or to tomorrow once they are more than 30 minutes past.
-export function sampleBoard(samples, now = chicagoNow()) {
+// Sample times use today's date or the next day once more than 30 minutes past.
+export function sampleBoard(samples, now = chicagoNow(), { direction = 'departures' } = {}) {
   const today = now.slice(0, 10), tomorrow = dayAfter(today), nowMin = keyMinutes(now);
+  const side = direction === 'arrivals' ? 'arrival' : 'departure';
   const move = (iso, date) => typeof iso === 'string' ? date + iso.slice(10) : iso;
   return (samples.flights || []).map(f => {
-    const date = keyMinutes(`${today}T${f.departure.scheduled.slice(11, 16)}`) < nowMin - 30 ? tomorrow : today;
-    return { ...f, flight_date: date, departure: { ...f.departure, scheduled: move(f.departure.scheduled, date), estimated: move(f.departure.estimated, date) } };
+    const local = f[side];
+    const date = keyMinutes(`${today}T${local.scheduled.slice(11, 16)}`) < nowMin - 30 ? tomorrow : today;
+    return { ...f, flight_date: date, [side]: { ...local, scheduled: move(local.scheduled, date), estimated: move(local.estimated, date) } };
   });
 }
-// Rows for the board: O'Hare departures (codeshare copies removed), from 15 minutes ago to 24 hours
-// ahead, filtered by terminal and a search, in departure order.
-export function boardRows(items, now = chicagoNow(), { terminal = 'all', query = '', limit = 80 } = {}) {
-  const nowMin = keyMinutes(now), q = String(query || '').toLowerCase().replace(/\s+/g, '');
+const searchKey = value => String(value || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+
+// O'Hare flights in time order. Keep codeshares available for flight-number searches.
+export function boardRows(items, now = chicagoNow(), { direction = 'departures', terminal = 'all', query = '', limit = 80 } = {}) {
+  const nowMin = keyMinutes(now), q = searchKey(query);
   const at = f => keyMinutes((f.estimated || f.scheduled).key);
   const seen = new Set();
-  return (items || []).map(normalizeRecord)
-    .filter(f => f.from === 'ORD' && f.scheduled && !f.operatedBy && f.iata)
+  return (items || []).map(item => normalizeRecord(item, direction))
+    .filter(f => (direction === 'arrivals' ? f.to.iata : f.from) === 'ORD' && f.scheduled && f.iata)
+    .filter(f => !f.operatedBy || (q && searchKey(f.iata).includes(q)))
     .filter(f => { if (seen.has(f.iata + f.scheduled.key)) return false; seen.add(f.iata + f.scheduled.key); return true; })
     .map(f => ({ ...f, label: normalizeFlight(f.iata)?.label || f.iata }))
     .filter(f => at(f) >= nowMin - 15 && at(f) <= nowMin + 1440)
     .filter(f => terminal === 'all' || f.terminal === terminal)
-    .filter(f => !q || [f.iata, f.airline, f.to.name, f.to.iata, f.gate].some(v => String(v || '').toLowerCase().replace(/\s+/g, '').includes(q)))
+    .filter(f => !q || [f.iata, f.airline, f.airport.name, f.airport.iata, f.gate].some(value => searchKey(value).includes(q)))
     .sort((a, b) => at(a) - at(b) || a.iata.localeCompare(b.iata))
     .slice(0, limit);
 }
-export function fetchBoard(apiBase, options) {
+export function fetchBoard(apiBase, { direction = 'departures', ...options } = {}) {
   const url = new URL(apiBase);
   url.pathname = url.pathname.replace(/\/?$/, '/board');
+  if (direction === 'arrivals') url.searchParams.set('direction', 'arrivals');
   return fetchSnapshot(url, options);
 }
 

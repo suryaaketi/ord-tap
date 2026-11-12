@@ -16,18 +16,15 @@ Links work when opened directly or refreshed. `start` is the sign; `to` is the d
 
 ## Flight lookup
 
-- With no Worker address configured, the flight options open the embedded O’Hare board. Confirm your gate with your airline and search for it on the map.
+- With no Worker address configured, the flight options open the searchable sample board. The **Live board** button opens current Avionio schedules. Confirm your gate with your airline and search for it on the map.
 - With Aviationstack connected, visible flight details check for updates once a minute. Each result shows when the Worker checked the feed. **Check for updates** also requests the latest available snapshot. Gate changes are flagged on the route. Setup is in [worker/README.md](worker/README.md).
 - Add `?demo=1` (or `&demo=1` on a sign link) to try labeled sample flights, including UA 1234 (Gate C17), UA 2210 (delayed, B14), UA 4567 (no gate), AA 2345 (Terminal 3), DL 3456 (Terminal 5, transfer bus) and UA 5678 (cancelled).
 
-## Departures board
+## Flight board
 
-**Departures board** opens [Avionio’s O’Hare widget](https://www.avionio.com/en/widgets/ord/departures/en) inside ORD Tap. It shows current flight numbers, times, destinations and statuses and includes an arrivals tab. The widget loads in an isolated iframe when the board is opened. Confirm gate assignments with your airline.
+**Flight board** opens the ORD Tap list. Choose **Departures** or **Arrivals** and search by flight number, airport name or code, or airline. The terminal filter works in either direction. Departures with a mapped gate can open a walking route.
 
-With Aviationstack connected, ORD Tap’s own board can display available gate and terminal information, estimate walking time from a sign, and route to a mapped gate.
-
-- With Aviationstack connected, the board checks for a newer snapshot once a minute while open. The Worker's cache controls how often it can fetch new data. Rows come from the returned feed and may omit some departures. The official board link is always available.
-- In `?demo=1`, the board shows labeled sample departures.
+With the Aviationstack Worker connected, the list loads its current snapshots. The Worker caches departures and arrivals separately. Unconfigured sites use labeled sample flights for the search and offer [Avionio’s O’Hare widget](https://www.avionio.com/en/widgets/ord/departures/en) through the **Live board** button. In `?demo=1`, the sample board and sample flight finder are available without the widget.
 
 ## Walking the route
 
@@ -38,7 +35,7 @@ With Aviationstack connected, ORD Tap’s own board can display available gate a
 
 ## Updating the site
 
-`index.html` and the imports at the top of `ord/app.js` add a version query such as `?v=20261112c` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
+`index.html` and the imports at the top of `ord/app.js` add a version query such as `?v=20261112d` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
 
 ## Coverage
 

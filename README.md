@@ -35,7 +35,7 @@ With the Aviationstack Worker connected, the list loads its current snapshots. T
 
 ## Updating the site
 
-`index.html` and the imports at the top of `ord/app.js` add a version query such as `?v=20261112d` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
+`index.html` and the imports at the top of `ord/app.js` add a version query such as `?v=20261112e` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
 
 ## Coverage
 

@@ -11,9 +11,9 @@
   <title>ORD Tap · O'Hare wayfinding prototype</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=20261112d">
+  <link rel="stylesheet" href="styles.css?v=20261112e">
   <script src="vendor/leaflet/leaflet.js" defer></script>
-  <script src="ord/app.js?v=20261112d" type="module"></script>
+  <script src="ord/app.js?v=20261112e" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#places">Skip to destinations</a>
@@ -108,9 +108,11 @@
         <div class="board-head">
           <h2 id="board-title" tabindex="-1">O’Hare flights</h2>
           <span class="board-source" id="board-source" hidden></span>
+        </div>
+        <div class="board-meta">
+          <p class="board-note" id="board-note"></p>
           <button class="board-live-toggle" id="board-live-toggle" aria-expanded="false" aria-controls="board-widget" type="button" hidden>Live board</button>
         </div>
-        <p class="board-note" id="board-note"></p>
         <div id="board-controls">
           <div class="categories board-directions" role="group" aria-label="Flight direction">
             <button class="category active" data-board-direction="departures" aria-pressed="true" type="button">Departures</button>

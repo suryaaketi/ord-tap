@@ -544,7 +544,8 @@ body.has-route.needs-start .finder-top{display:block}
 .board-source{font-size:11px;font-weight:650;border-radius:999px;padding:3px 8px}
 .board-source.sample{color:var(--orange);background:color-mix(in srgb,var(--orange) 15%,transparent)}
 .board-live-toggle{margin-left:auto;padding:4px 0 4px 6px;min-height:34px;border:0;background:transparent;color:var(--blue);font-size:13px;font-weight:600;white-space:nowrap}
-.board-note{font-size:12px;line-height:1.4;color:var(--label-2);margin:0 0 12px}
+.board-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.board-note{font-size:12px;line-height:1.4;color:var(--label-2);margin:0}
 .board-directions{grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 9px}
 .board-directions::before{width:calc((100% - 4px)/2)}
 .board-directions .category{min-height:36px}

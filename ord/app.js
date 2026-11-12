@@ -1,9 +1,9 @@
-import { createSheet } from '../sheet.js?v=20261112d';
-import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261112d';
-import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, errorText, clockText, chicagoNow, sampleBoard, boardRows, fetchBoard } from './flights.js?v=20261112d';
-import { FLIGHT_API } from './config.js?v=20261112d';
-import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261112d';
-import { metersBetween } from '../router.js?v=20261112d';
+import { createSheet } from '../sheet.js?v=20261112e';
+import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261112e';
+import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, errorText, clockText, chicagoNow, sampleBoard, boardRows, fetchBoard } from './flights.js?v=20261112e';
+import { FLIGHT_API } from './config.js?v=20261112e';
+import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261112e';
+import { metersBetween } from '../router.js?v=20261112e';
 
 // Files carry ?v=… so a phone that opened an older version never mixes old and new code.
 // Change the date in index.html and these imports whenever you push a change.

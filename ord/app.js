@@ -1,9 +1,9 @@
-import { createSheet } from '../sheet.js?v=20261112b';
-import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261112b';
-import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, errorText, clockText, chicagoNow, sampleBoard, boardRows, fetchBoard } from './flights.js?v=20261112b';
-import { FLIGHT_API } from './config.js?v=20261112b';
-import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261112b';
-import { metersBetween } from '../router.js?v=20261112b';
+import { createSheet } from '../sheet.js?v=20261112c';
+import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261112c';
+import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, errorText, clockText, chicagoNow, sampleBoard, boardRows, fetchBoard } from './flights.js?v=20261112c';
+import { FLIGHT_API } from './config.js?v=20261112c';
+import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261112c';
+import { metersBetween } from '../router.js?v=20261112c';
 
 // Files carry ?v=… so a phone that opened an older version never mixes old and new code.
 // Change the date in index.html and these imports whenever you push a change.
@@ -331,7 +331,7 @@ function showStep(name) {
 function chooseTrip(kind) {
   tripKind = kind;
   if (kind === 'browse') { showStep('reopen'); return; }
-  if (!FLIGHT_FEED_AVAILABLE) { showOfficialFlightStatus(); return; }
+  if (!FLIGHT_FEED_AVAILABLE) { openBoard(); return; }
   $('ff-number-label').textContent = kind === 'connect' ? "What's your next flight number?" : "What's your flight number?";
   $('ff-help').classList.remove('error');
   $('ff-help').textContent = SAMPLE_MODE
@@ -366,17 +366,6 @@ function officialFlightLink(className = '') {
   link.target = '_blank';
   link.rel = 'noopener';
   return link;
-}
-function showOfficialFlightStatus() {
-  const browse = el('button', 'ff-skip', 'Browse the map');
-  browse.type = 'button';
-  browse.addEventListener('click', () => chooseTrip('browse'));
-  resultCard([
-    el('h2', 'ff-question', 'Check your flight'),
-    el('p', 'ff-text', 'Check your flight on O’Hare’s website, then search for your gate on this map.'),
-    officialFlightLink('secondary-button link-button'),
-    browse
-  ]);
 }
 const chicagoTime = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
@@ -424,7 +413,10 @@ async function records(iata) {
   finally { if (lookupController === controller) lookupController = null; }
 }
 async function lookupFlight(text, { fromLink = false, refresh = false, automatic = false } = {}) {
-  if (!FLIGHT_FEED_AVAILABLE) { showOfficialFlightStatus(); return; }
+  if (!FLIGHT_FEED_AVAILABLE) {
+    if (!fromLink || !destId) openBoard();
+    return;
+  }
   const typedGate = !fromLink && looksLikeGate(ctx, text);
   if (typedGate) { toast(`That looks like a gate. Showing ${typedGate.name}.`); showStep('reopen'); selectDestination(typedGate.id); return; }
   const parsed = normalizeFlight(text);
@@ -552,6 +544,14 @@ function renderBoardNote() {
   badge.className = `board-live${sample ? ' sample' : ''}`;
   badge.textContent = sample ? 'Sample' : boardData && !boardError ? 'Aviationstack' : '';
   badge.hidden = !badge.textContent;
+  if (!FLIGHT_FEED_AVAILABLE) {
+    const source = el('a', '', 'Avionio');
+    source.href = 'https://www.avionio.com/en/airport/ord/departures';
+    source.target = '_blank';
+    source.rel = 'noopener noreferrer';
+    note.replaceChildren('Flight data by ', source, '. Check your gate with your airline or at ', officialFlightLink(), '.');
+    return;
+  }
   if (sample) {
     note.textContent = 'Sample departures for the demo.';
     return;
@@ -563,7 +563,6 @@ function renderBoardNote() {
     description = `${snapshotTime(boardData.fetchedAt)}.${interval ? ` The feed is checked when requested after ${period}.` : ''} `;
   }
   if (boardError) description += 'The latest check failed. ';
-  if (!FLIGHT_FEED_AVAILABLE) description = 'Check current departures on O’Hare’s website. ';
   note.replaceChildren(description, officialFlightLink());
 }
 function renderBoard() {
@@ -621,7 +620,10 @@ function openBoard() {
   $('board-controls').hidden = !FLIGHT_FEED_AVAILABLE;
   sheet.snap('large'); $('sheet').scrollTo({ top: 0 });
   renderBoard();
-  if (!FLIGHT_FEED_AVAILABLE) return;
+  if (!FLIGHT_FEED_AVAILABLE) {
+    $('board-widget').replaceChildren($('board-widget-template').content.cloneNode(true));
+    return;
+  }
   refreshBoard();
   clearInterval(boardTimer);
   boardTimer = setInterval(refreshBoard, FLIGHT_CHECK_MS);
@@ -629,6 +631,7 @@ function openBoard() {
 function closeBoard(toPlaces = true) {
   clearInterval(boardTimer); boardTimer = null;
   boardRequest?.abort(); boardRequest = null;
+  $('board-widget').replaceChildren();
   $('board-view').hidden = true; document.body.classList.remove('board-open');
   if (toPlaces) { $('places').hidden = false; sheet.snap('medium'); }
 }
@@ -924,7 +927,11 @@ async function init() {
     airport = outline;
     ctx = createContext(network, places);
     buildStartPicker(); renderHere(); sheet.snap('medium', false);
-    if (!FLIGHT_FEED_AVAILABLE) $('board-entry-sub').textContent = 'Official O’Hare flight status';
+    if (!FLIGHT_FEED_AVAILABLE) {
+      $('board-entry-sub').textContent = 'Live departures and arrivals';
+      $('board-title').textContent = 'O’Hare flights';
+      $('ff-reopen-label').textContent = 'View live flights';
+    }
     map = L.map('map', { zoomControl: false, preferCanvas: true, minZoom: 13.5, maxZoom: 20, zoomSnap: 0.25, attributionControl: true, maxBounds: [[41.945, -87.945], [42.013, -87.865]], maxBoundsViscosity: 0.8 }).setView([41.9768, -87.8990], 15);
     map.attributionControl.setPrefix(false);
     map.attributionControl.addAttribution(`${outline ? 'Outlines © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · ' : ''}<a href="sources.html">Sources</a>`);

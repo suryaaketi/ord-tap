@@ -1,6 +1,6 @@
 # ORD Tap
 
-An ENGR 408 student prototype of NFC wayfinding at Chicago O'Hare. A passenger taps an NFC sign (or scans its QR code), the website opens with a fixed **You are here** marker, and two questions follow: *Are you catching a flight?* and *What's your flight number?* The site looks up the gate and draws a highlighted route there with written directions. Anyone can also search for a gate, restroom or food. It needs no GPS, no location permission and no app.
+An ENGR 408 student prototype of NFC wayfinding at Chicago O'Hare. A passenger taps an NFC sign (or scans its QR code), the website opens with a fixed **You are here** marker, and the passenger can view current flights or search for a gate, restroom or food. With the flight API connected, the site can look up a flight’s gate and draw a route there with written directions. It needs no GPS, no location permission and no app.
 
 Not an official Chicago Department of Aviation service.
 
@@ -16,13 +16,15 @@ Links work when opened directly or refreshed. `start` is the sign; `to` is the d
 
 ## Flight lookup
 
-- With no Worker address configured, the site links to the [official O’Hare flight search](https://www.flychicago.com/OHare/myflight/flightsearch/Pages/default.aspx). Search for the resulting gate on the map.
+- With no Worker address configured, the flight options open the embedded O’Hare board. Confirm your gate with your airline and search for it on the map.
 - With Aviationstack connected, visible flight details check for updates once a minute. Each result shows when the Worker checked the feed. **Check for updates** also requests the latest available snapshot. Gate changes are flagged on the route. Setup is in [worker/README.md](worker/README.md).
 - Add `?demo=1` (or `&demo=1` on a sign link) to try labeled sample flights, including UA 1234 (Gate C17), UA 2210 (delayed, B14), UA 4567 (no gate), AA 2345 (Terminal 3), DL 3456 (Terminal 5, transfer bus) and UA 5678 (cancelled).
 
 ## Departures board
 
-**Departures board** on the main screen lists flights leaving O'Hare: time (with the new time if delayed), destination, flight, terminal and gate, status, and the walking time from your sign for Terminal 1 gates. You can filter by terminal and search by city, airline or flight. Tap a flight to walk to its gate.
+**Departures board** opens [Avionio’s O’Hare widget](https://www.avionio.com/en/widgets/ord/departures/en) inside ORD Tap. It shows current flight numbers, times, destinations and statuses and includes an arrivals tab. The widget loads in an isolated iframe when the board is opened. Confirm gate assignments with your airline.
+
+With Aviationstack connected, ORD Tap’s own board can display available gate and terminal information, estimate walking time from a sign, and route to a mapped gate.
 
 - With Aviationstack connected, the board checks for a newer snapshot once a minute while open. The Worker's cache controls how often it can fetch new data. Rows come from the returned feed and may omit some departures. The official board link is always available.
 - In `?demo=1`, the board shows labeled sample departures.
@@ -36,7 +38,7 @@ Links work when opened directly or refreshed. `start` is the sign; `to` is the d
 
 ## Updating the site
 
-`index.html` and the imports at the top of `ord/app.js` add a version query such as `?v=20261112b` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
+`index.html` and the imports at the top of `ord/app.js` add a version query such as `?v=20261112c` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
 
 ## Coverage
 
@@ -71,6 +73,6 @@ Then open `http://localhost:8000/?start=t1-b6&to=t1-c17`.
 
 ## Sources
 
-Checked November 4, 2026: the [O'Hare interactive map](https://maps.ord.flychicago.com/), the [official printable terminal maps](https://www.flychicago.com/ohare/map/Pages/printablemaps.aspx) including the [Terminal 1 map](https://www.flychicago.com/SiteCollectionDocuments/O%27Hare/ArchivedPDFs/Map/T1.pdf), [terminal accessibility and amenities](https://www.flychicago.com/ohare/servicesamenities/accessibility/Pages/Terminal-Accessibility.aspx), and [transportation between terminals](https://www.flychicago.com/ohare/servicesamenities/services/pages/tbt.aspx). Building outlines and runways © OpenStreetMap contributors (ODbL). Flight data from Aviationstack. See `sources.html`.
+Checked November 4, 2026: the [O'Hare interactive map](https://maps.ord.flychicago.com/), the [official printable terminal maps](https://www.flychicago.com/ohare/map/Pages/printablemaps.aspx) including the [Terminal 1 map](https://www.flychicago.com/SiteCollectionDocuments/O%27Hare/ArchivedPDFs/Map/T1.pdf), [terminal accessibility and amenities](https://www.flychicago.com/ohare/servicesamenities/accessibility/Pages/Terminal-Accessibility.aspx), and [transportation between terminals](https://www.flychicago.com/ohare/servicesamenities/services/pages/tbt.aspx). Building outlines and runways © OpenStreetMap contributors (ODbL). Flight data from Avionio or the configured Aviationstack Worker. See `sources.html`.
 
 Locations were checked against the airport's map data for a non-commercial class prototype. Ask the Chicago Department of Aviation before using this data beyond that.

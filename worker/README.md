@@ -1,6 +1,6 @@
 # ORD Tap flight feed
 
-ORD Tap uses a Cloudflare Worker for its departures board and flight lookup. The Worker fetches ORD records from Aviationstack and returns the time of the last check. The app links to [O’Hare’s official flight status](https://www.flychicago.com/OHare/myflight/flightsearch/Pages/default.aspx) until a Worker address is configured.
+ORD Tap uses a Cloudflare Worker for its departures board and flight lookup. The Worker fetches ORD records from Aviationstack and returns the time of the last check. Until a Worker address is configured, ORD Tap displays the [Avionio O’Hare board](https://www.avionio.com/en/widgets/ord/departures/en) inside the app.
 
 ## 1. Get an Aviationstack API key
 

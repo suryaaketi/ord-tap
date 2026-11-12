@@ -1,9 +1,9 @@
-import { createSheet } from '../sheet.js?v=20261105b';
-import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261105b';
-import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, errorText, clockText, chicagoNow, sampleBoard, boardRows, fetchBoard } from './flights.js?v=20261105b';
-import { FLIGHT_API } from './config.js?v=20261105b';
-import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261105b';
-import { metersBetween } from '../router.js?v=20261105b';
+import { createSheet } from '../sheet.js?v=20261112';
+import { createContext, planTrip, search, placeFacts, formatMeters } from './core.js?v=20261112';
+import { normalizeFlight, pickFlight, findGate, looksLikeGate, terminalHint, fetchFlights, errorText, clockText, chicagoNow, sampleBoard, boardRows, fetchBoard } from './flights.js?v=20261112';
+import { FLIGHT_API } from './config.js?v=20261112';
+import { WALK_SPEED, AIRPORT_CENTER, measureRoute, positionAt, stepAt, metersLeftInStep, snapToRoute, insideAirport, nearestGate, LocationWatch, GOOD_ACCURACY, USABLE_ACCURACY } from './walk.js?v=20261112';
+import { metersBetween } from '../router.js?v=20261112';
 
 // Files carry ?v=… so a phone that opened an older version never mixes old and new code.
 // Change the date in index.html and these imports whenever you push a change.
@@ -27,6 +27,7 @@ const paths = {
   down:'<path d="M12 4v14m-6-6 6 6 6-6"/>',
   up:'<path d="M12 20V6m-6 6 6-6 6 6"/>',
   back:'<path d="m15 5-7 7 7 7"/>',
+  close:'<path d="m6 6 12 12M18 6 6 18"/>',
   arrow:'<path d="m9 5 7 7-7 7"/>',
   expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
   share:'<path d="M12 15V3m-4 4 4-4 4 4M5 12v8h14v-8"/>',
@@ -709,6 +710,25 @@ function setStart(id) {
   if (destId) fitTrip(); else if (ctx.routable(id)) centerOn(ctx.byId.get(id).point, 17.5);
 }
 
+// ---------- Wheelchair assistance demo ----------
+const helpDialog = $('help-dialog');
+const helpRequest = $('help-request');
+$('help-open').addEventListener('click', () => {
+  const start = ctx?.routable(startId) ? ctx.byId.get(startId) : null;
+  $('help-location').textContent = start
+    ? `${start.name} · ${placeFacts(ctx, start).terminal}`
+    : 'Select a starting point to preview a pickup location.';
+  $('help-status').textContent = '';
+  helpRequest.disabled = false;
+  helpDialog.showModal();
+});
+helpRequest.addEventListener('click', () => {
+  $('help-status').textContent = 'Demo request complete.';
+  helpRequest.disabled = true;
+  $('help-close').focus();
+});
+helpDialog.addEventListener('close', () => $('help-open').focus({ preventScroll: true }));
+
 // ---------- Events ----------
 $('search').addEventListener('input', renderList);
 $('search').addEventListener('focus', () => sheet.snap('large'));
@@ -754,7 +774,7 @@ $('share').addEventListener('click', async () => {
   try { if (navigator.share) { await navigator.share({ title: `Route to ${dest?.name || 'O\'Hare'}`, url }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(url); toast('Route link copied.'); } catch { prompt('Copy this route link:', url); }
 });
-document.addEventListener('keydown', e => { if (e.key === '/' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); $('search').focus(); } });
+document.addEventListener('keydown', e => { if (!helpDialog.open && e.key === '/' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); $('search').focus(); } });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => location.reload());
 
 // ---------- Start ----------

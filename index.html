@@ -11,9 +11,9 @@
   <title>ORD Tap · O'Hare wayfinding prototype</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=20261105b">
+  <link rel="stylesheet" href="styles.css?v=20261112">
   <script src="vendor/leaflet/leaflet.js" defer></script>
-  <script src="ord/app.js?v=20261105b" type="module"></script>
+  <script src="ord/app.js?v=20261112" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#places">Skip to destinations</a>
@@ -131,10 +131,28 @@
         <button type="button" data-view="5">T5</button>
       </nav>
       <div class="walk-hud" id="walk-hud" hidden><span class="walk-hud-symbol" id="walk-hud-icon"></span><div><span id="walk-hud-meta"></span><strong id="walk-hud-text"></strong><small id="walk-hud-detail"></small></div></div>
-      <div class="map-controls"><button class="fit-map" id="fit-map" type="button" aria-label="Show the whole route" title="Fit map"><span data-icon="expand"></span></button></div>
+      <div class="map-controls">
+        <button class="fit-map" id="fit-map" type="button" aria-label="Show the whole route" title="Fit map"><span data-icon="expand"></span></button>
+        <button class="help-button" id="help-open" type="button" aria-haspopup="dialog" aria-controls="help-dialog">Help</button>
+      </div>
       <div class="map-legend ord-legend"><span class="legend-start"></span>You are here<span class="legend-destination"></span>Destination<span class="legend-route"></span>Route<span class="legend-tunnel"></span>Tunnel level</div>
     </section>
   </main>
+  <dialog class="help-dialog" id="help-dialog" aria-labelledby="help-title" aria-describedby="help-intro">
+    <div class="dialog-heading">
+      <h2 id="help-title">Wheelchair assistance</h2>
+      <form method="dialog">
+        <button class="icon-button" id="help-close" type="submit" aria-label="Close help" autofocus><span data-icon="close"></span></button>
+      </form>
+    </div>
+    <p class="dialog-intro" id="help-intro">This is a demo of how to request wheelchair assistance.</p>
+    <div class="notice">
+      <strong>Demo pickup point</strong>
+      <p id="help-location"></p>
+    </div>
+    <button class="primary-button" id="help-request" type="button">Simulate request</button>
+    <p class="notice ok help-status" id="help-status" role="status"></p>
+  </dialog>
   <div class="toast" id="toast" role="status" hidden></div>
   <noscript><div class="noscript">Enable JavaScript to use the O'Hare wayfinding prototype.</div></noscript>
 </body>

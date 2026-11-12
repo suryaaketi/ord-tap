@@ -181,7 +181,9 @@ svg{display:block;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:
 .fit-map,.recenter-map{width:44px;height:44px;border:0;background:transparent;color:var(--blue);display:grid;place-items:center}
 .recenter-map{border-top:.5px solid var(--separator)}
 .fit-map svg,.recenter-map svg{width:19px;height:19px}
-.fit-map:active,.recenter-map:active{background:var(--fill)}
+.fit-map:active,.recenter-map:active,.help-button:active{background:var(--fill)}
+.help-button{width:44px;height:44px;border:0;border-top:1px solid var(--separator);padding:0;background:transparent;color:var(--label);font-size:14px;font-weight:600}
+.map-controls button:focus-visible{outline-offset:-3px}
 .map-legend{position:absolute;z-index:450;bottom:22px;left:calc((100% + var(--sidebar) + var(--gutter)) / 2);transform:translateX(-50%);display:flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 14px;border-radius:999px;background:var(--material);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:var(--shadow-control);font-size:12px;color:var(--label-2)}
 .legend-start{width:10px;height:10px;border-radius:50%;background:#fff;border:3px solid var(--blue)}
 .legend-destination{width:9px;height:9px;border-radius:50%;background:var(--orange);margin-left:10px}
@@ -237,6 +239,9 @@ dialog::backdrop{background:rgba(0,0,0,.32);-webkit-backdrop-filter:blur(3px);ba
 .dialog-heading h2{font-size:28px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0 0 10px}
 .icon-button{color:var(--label-2)}
 .dialog-intro{font-size:15px;line-height:1.45;color:var(--label-2);margin:0 0 16px}
+@media (min-width:701px){.help-dialog{max-width:420px}}
+.help-status{margin:12px 0 0;font-size:15px;font-weight:600}
+.help-status:empty{margin:0;padding:0;border:0}
 .setup-steps{list-style:none;counter-reset:setup;padding:0;margin:0 0 18px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .setup-steps li{counter-increment:setup;background:var(--surface);border-radius:12px;padding:12px}
 .setup-steps li::before{content:counter(setup);display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-size:13px;font-weight:600;margin-bottom:8px}

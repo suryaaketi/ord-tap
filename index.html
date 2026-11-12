@@ -11,9 +11,9 @@
   <title>ORD Tap · O'Hare wayfinding prototype</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=20261112e">
+  <link rel="stylesheet" href="styles.css?v=20261112f">
   <script src="vendor/leaflet/leaflet.js" defer></script>
-  <script src="ord/app.js?v=20261112e" type="module"></script>
+  <script src="ord/app.js?v=20261112f" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#places">Skip to destinations</a>
@@ -109,10 +109,7 @@
           <h2 id="board-title" tabindex="-1">O’Hare flights</h2>
           <span class="board-source" id="board-source" hidden></span>
         </div>
-        <div class="board-meta">
-          <p class="board-note" id="board-note"></p>
-          <button class="board-live-toggle" id="board-live-toggle" aria-expanded="false" aria-controls="board-widget" type="button" hidden>Live board</button>
-        </div>
+        <p class="board-note" id="board-note"></p>
         <div id="board-controls">
           <div class="categories board-directions" role="group" aria-label="Flight direction">
             <button class="category active" data-board-direction="departures" aria-pressed="true" type="button">Departures</button>
@@ -134,12 +131,6 @@
           </div>
         </div>
         <ol class="board-list" id="board-list"></ol>
-        <div id="board-widget" hidden></div>
-        <template id="board-widget-template">
-          <iframe class="board-widget-frame" src="https://www.avionio.com/widget/en/ord/departures?style=3"
-            title="Chicago O’Hare flight board by Avionio" width="100%" height="650" loading="lazy"
-            sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
-        </template>
       </section>
 
       <footer class="finder-footer"><span>ENGR 408 student prototype. Not an official Chicago Department of Aviation service.</span><small>Building outlines © OpenStreetMap contributors. Gates checked against the official O'Hare interactive map. Confirm gate assignments with your airline. <a href="sources.html">Sources</a></small></footer>

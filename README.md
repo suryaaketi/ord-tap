@@ -16,15 +16,15 @@ Links work when opened directly or refreshed. `start` is the sign; `to` is the d
 
 ## Flight lookup
 
-- With no Worker address configured, the flight options open the searchable sample board. The **Live board** button opens current Avionio schedules. Confirm your gate with your airline and search for it on the map.
-- With Aviationstack connected, visible flight details check for updates once a minute. Each result shows when the Worker checked the feed. **Check for updates** also requests the latest available snapshot. Gate changes are flagged on the route. Setup is in [worker/README.md](worker/README.md).
+- With no Worker address configured, the flight options open the labeled sample board and link to O’Hare’s official flight status.
+- With the flight Worker connected, visible flight details check for a newer snapshot once a minute. Each result shows when the Worker checked the feed. **Check for updates** also requests the latest available snapshot. Gate changes are flagged on the route. Setup is in [worker/README.md](worker/README.md).
 - Add `?demo=1` (or `&demo=1` on a sign link) to try labeled sample flights, including UA 1234 (Gate C17), UA 2210 (delayed, B14), UA 4567 (no gate), AA 2345 (Terminal 3), DL 3456 (Terminal 5, transfer bus) and UA 5678 (cancelled).
 
 ## Flight board
 
 **Flight board** opens the ORD Tap list. Choose **Departures** or **Arrivals** and search by flight number, airport name or code, or airline. The terminal filter works in either direction. Departures with a mapped gate can open a walking route.
 
-With the Aviationstack Worker connected, the list loads its current snapshots. The Worker caches departures and arrivals separately. Unconfigured sites use labeled sample flights for the search and offer [Avionio’s O’Hare widget](https://www.avionio.com/en/widgets/ord/departures/en) through the **Live board** button. In `?demo=1`, the sample board and sample flight finder are available without the widget.
+With the AeroDataBox Worker connected, these same cards show the full Chicago calendar day from the feed, with upcoming flights first. Search includes earlier flights from the same day. The board shows the last check time and keeps codeshare numbers searchable. Sample records are used when the Worker is unconfigured or when `?demo=1` is selected.
 
 ## Walking the route
 
@@ -35,7 +35,7 @@ With the Aviationstack Worker connected, the list loads its current snapshots. T
 
 ## Updating the site
 
-`index.html` and the imports at the top of `ord/app.js` add a version query such as `?v=20261112e` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
+`index.html` and the imports at the top of `ord/app.js` add a version query such as `?v=20261112f` to file names. When you push a change to the code or styles, change that date in both places, so phones that opened an older version load the new files together.
 
 ## Coverage
 
@@ -70,6 +70,6 @@ Then open `http://localhost:8000/?start=t1-b6&to=t1-c17`.
 
 ## Sources
 
-Checked November 4, 2026: the [O'Hare interactive map](https://maps.ord.flychicago.com/), the [official printable terminal maps](https://www.flychicago.com/ohare/map/Pages/printablemaps.aspx) including the [Terminal 1 map](https://www.flychicago.com/SiteCollectionDocuments/O%27Hare/ArchivedPDFs/Map/T1.pdf), [terminal accessibility and amenities](https://www.flychicago.com/ohare/servicesamenities/accessibility/Pages/Terminal-Accessibility.aspx), and [transportation between terminals](https://www.flychicago.com/ohare/servicesamenities/services/pages/tbt.aspx). Building outlines and runways © OpenStreetMap contributors (ODbL). Flight data from Avionio or the configured Aviationstack Worker. See `sources.html`.
+Checked November 4, 2026: the [O'Hare interactive map](https://maps.ord.flychicago.com/), the [official printable terminal maps](https://www.flychicago.com/ohare/map/Pages/printablemaps.aspx) including the [Terminal 1 map](https://www.flychicago.com/SiteCollectionDocuments/O%27Hare/ArchivedPDFs/Map/T1.pdf), [terminal accessibility and amenities](https://www.flychicago.com/ohare/servicesamenities/accessibility/Pages/Terminal-Accessibility.aspx), and [transportation between terminals](https://www.flychicago.com/ohare/servicesamenities/services/pages/tbt.aspx). Building outlines and runways © OpenStreetMap contributors (ODbL). Flight data from the configured Worker. See `sources.html`.
 
 Locations were checked against the airport's map data for a non-commercial class prototype. Ask the Chicago Department of Aviation before using this data beyond that.

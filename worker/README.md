@@ -1,24 +1,24 @@
 # ORD Tap flight feed
 
-ORD Tap uses a Cloudflare Worker for its searchable departures and arrivals board and flight lookup. The Worker fetches ORD records from Aviationstack and returns the time of the last check. Until a Worker address is configured, search uses labeled sample data. **Live board** opens the [Avionio O’Hare widget](https://www.avionio.com/en/widgets/ord/departures/en) in ORD Tap.
+The Cloudflare Worker loads the O’Hare schedule for the Chicago calendar day and shares it across Departures, Arrivals, and flight-number lookup. ORD Tap displays these flights in its own searchable cards.
 
-## 1. Get an Aviationstack API key
+## 1. Get an AeroDataBox key
 
-Get a key in the [Aviationstack dashboard](https://aviationstack.com/). The [free tier](https://aviationstack.com/product) includes 100 requests per month and works for a limited class demo. Frequent updates for a public board require a feed with a larger quota and adequate flight coverage.
+Subscribe to [AeroDataBox Basic on RapidAPI](https://rapidapi.com/aedbx-aedbx/api/AeroDataBox/pricing) and copy the RapidAPI key. The full-day board uses the [airport flight schedule endpoint](https://doc.aerodatabox.com/) in two 12-hour windows on a normal day. Basic includes 400 units per month at the time of setup. Each window uses 2 units, allowing about 100 full-day refreshes per month.
 
 ## 2. Deploy the Worker
 
-1. In the [Cloudflare dashboard](https://dash.cloudflare.com/), open **Workers & Pages** and create a Worker from **Hello World** named `ord-tap-flights`.
+1. In the [Cloudflare dashboard](https://dash.cloudflare.com/), open **Workers & Pages** and create a Worker named `ord-tap-flights`.
 2. Open **Edit code**, replace the starter code with [flight-worker.js](flight-worker.js), and deploy.
-3. Under **Settings → Variables and Secrets**, add a **Secret** named `AVIATIONSTACK_KEY` and enter your key there.
-4. Copy the public `https://ord-tap-flights.YOUR-NAME.workers.dev` address. Share the Worker address when connecting the site. Keep the key in Cloudflare.
+3. Under **Settings → Variables and Secrets**, add a **Secret** called `AERODATABOX_KEY` and save your RapidAPI key there.
+4. Copy the public `https://ord-tap-flights.YOUR-NAME.workers.dev` address. Only this address belongs in site configuration.
 
-Each board direction checks Aviationstack when requested after `BOARD_MINUTES` elapses. The default is 480 minutes. For the 100-request free tier, set `BOARD_MINUTES` to `1440` for ongoing use or use a shorter interval during a supervised demo. The site checks for newer snapshots every minute while the board or flight result is open. Lookups cache each flight number for 10 minutes. A `FLIGHTS` KV namespace binding lets instances share snapshots. Concurrent requests from different Cloudflare locations can still use additional quota. For a supervised demo, set `BOARD_MINUTES` as a plain text variable to a shorter interval (minimum 5 minutes) and restore it after the demo.
+The Worker checks the provider on demand. The default snapshot interval is 30 minutes. Set `BOARD_MINUTES` as a plain-text variable to change it, with a minimum of 5 minutes. For an always-available class prototype on Basic, set it to `480` and bind a KV namespace named `FLIGHTS` to share snapshots across Worker instances. Use a shorter interval during a demo. Check your usage in RapidAPI, since concurrent cache misses can consume extra units.
 
 ## 3. Verify and connect
 
-1. Open `/board` and `/board?direction=arrivals` on the Worker URL. Confirm each returns the corresponding ORD records and a recent `fetchedAt`.
-2. Use a current flight number from those records in `/flight?number=UA1234`, replacing `UA1234` with that number. Compare the time and gate with the airline or O’Hare. Gate and status availability depend on the feed.
-3. Set `FLIGHT_API` in [ord/config.js](../ord/config.js) to the public Worker base URL. Commit and deploy the site. Verify the board and the same flight lookup from the published site.
+1. Open `/board` and `/board?direction=arrivals` at the Worker URL. Both should return a `data` array, today’s Chicago `date`, `source: "aerodatabox"` and a recent `fetchedAt`.
+2. Compare a few flights from different parts of the day with O’Hare or the airline, including a late departure and any gates listed. Try a current departure in `/flight?number=UA1234` by replacing `UA1234` with its number.
+3. Set `FLIGHT_API` in [ord/config.js](../ord/config.js) to the Worker base URL, bump the file version queries, and publish the site. Verify both flight tabs and search. The published board then opens with provider data. `?demo=1` remains available for classroom demonstrations.
 
-Each direction uses the first 100 returned records and filters them to upcoming flights. Redeploy the Worker from this version to enable arrivals. Use the official link for additional flights or current airline confirmation. The public Worker address can receive requests outside the app, so monitor the provider quota before enabling frequent checks.
+The board shows the time of its last successful check. Gate and status availability depend on the provider. An existing `AVIATIONSTACK_KEY` still supports the older limited flight feed. Use `AERODATABOX_KEY` for the full-day board.

@@ -196,3 +196,119 @@ test('the Worker serves the board from its cache for the time set in BOARD_MINUT
     assert.deepEqual(await malformed.json(), { error: 'invalid-upstream-response' });
   } finally { globalThis.fetch = realFetch; }
 });
+
+function aeroDeparture(number, time, overrides = {}) {
+  return {
+    number, status: 'Expected', isCargo: false, codeshareStatus: 'IsOperator',
+    departure: { terminal: '1', gate: 'C17', scheduledTime: { local: time } },
+    arrival: { airport: { name: 'Denver International', iata: 'DEN' } },
+    airline: { name: 'United Airlines' },
+    ...overrides
+  };
+}
+
+test('the same searchable board shows the complete Chicago day from both live windows', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-13T02:00:00Z') });
+  const day = '2026-11-12', now = chicagoNow();
+  const morning = Array.from({ length: 130 }, (_, i) => aeroDeparture(`UA ${200 + i}`, `${day} 09:00-06:00`));
+  const evening = aeroDeparture('UA 0730', `${day} 22:15-06:00`, {
+    status: 'Boarding',
+    departure: {
+      terminal: '1', gate: 'C17',
+      scheduledTime: { local: `${day} 22:15-06:00`, utc: '2026-11-13 04:15Z' },
+      revisedTime: { local: `${day} 22:30-06:00`, utc: '2026-11-13 04:30Z' }
+    }
+  });
+  const boundary = aeroDeparture('UA 88', `${day} 12:00-06:00`);
+  const codeshare = aeroDeparture('LH 9500', `${day} 22:15-06:00`, { codeshareStatus: 'IsCodeshared' });
+  const arrivals = [{
+    number: 'AA 20', status: 'Arrived',
+    departure: { airport: { name: 'New York LaGuardia', iata: 'LGA' } },
+    arrival: { terminal: '3', gate: 'K10', scheduledTime: { local: `${day} 10:00-06:00` } }
+  }];
+  const requests = [];
+  const env = { AERODATABOX_KEY: 'test-secret', BOARD_MINUTES: '15' };
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    const asked = new URL(url);
+    requests.push(asked.pathname);
+    assert.equal(asked.hostname, 'aerodatabox.p.rapidapi.com');
+    assert.equal(asked.searchParams.get('direction'), 'Both');
+    assert.equal(asked.searchParams.get('withLeg'), 'true');
+    assert.equal(options.headers['X-RapidAPI-Key'], env.AERODATABOX_KEY);
+    assert.ok(!asked.href.includes(env.AERODATABOX_KEY));
+    return Response.json(asked.pathname.endsWith(`${day}T12:00`)
+      ? { departures: [...morning, boundary], arrivals }
+      : { departures: [boundary, evening, codeshare, aeroDeparture('UA 999', '2026-11-13 00:00-06:00')], arrivals: null });
+  });
+
+  const fetchImpl = url => worker.fetch(new Request(url), env);
+  const base = 'https://ord-worker.example';
+  const board = await fetchBoard(base, { fetchImpl });
+  assert.equal(board.date, day);
+  assert.equal(board.source, 'aerodatabox');
+  assert.equal(board.refreshMinutes, 15);
+  assert.equal(board.fetchedAt, '2026-11-13T02:00:00.000Z');
+  assert.equal(board.data.length, 133);
+  assert.ok(!JSON.stringify(board).includes(env.AERODATABOX_KEY));
+  const departures = boardRows(board.data, now, { date: board.date });
+  assert.equal(departures.length, 132);
+  assert.equal(departures[0].iata, 'UA730');
+  assert.equal(departures[0].statusText, 'Boarding');
+  assert.equal(departures[0].delay, 15);
+  assert.equal(clockText(departures[0].estimated), '10:30 p.m.');
+  assert.equal(findGate(ctx, departures[0].gate, departures[0].terminal).id, 't1-c17');
+  assert.equal(boardRows(board.data, now, { date: day, query: 'denver' }).length, departures.length);
+  assert.equal(boardRows(board.data, now, { date: day, query: 'UA-0730' })[0].iata, 'UA730');
+  assert.equal(boardRows(board.data, now, { date: day, query: 'LH 9500' })[0].iata, 'LH9500');
+
+  const incoming = await fetchBoard(base, { direction: 'arrivals', fetchImpl });
+  const [arrival] = boardRows(incoming.data, now, { direction: 'arrivals', date: incoming.date, query: 'New York' });
+  assert.equal(arrival.iata, 'AA20');
+  assert.equal(arrival.gate, 'K10');
+  const lookup = await fetchFlights(base, 'UA 0730', { fetchImpl });
+  assert.deepEqual(lookup.data, board.data.filter(f => f.flight.iata === 'UA730'));
+  assert.deepEqual(requests, [
+    '/flights/airports/iata/ORD/2026-11-12T00:00/2026-11-12T12:00',
+    '/flights/airports/iata/ORD/2026-11-12T12:00/2026-11-13T00:00'
+  ]);
+});
+
+test('the daily board keeps an overnight delay and excludes tomorrow’s schedule', () => {
+  const date = '2026-11-12', now = `${date}T23:55`;
+  const shifted = record({ departure: { scheduled: `${date}T23:50:00-06:00`, estimated: '2026-11-13T00:15:00-06:00' } });
+  const tomorrow = record({ departure: { scheduled: '2026-11-13T01:00:00-06:00', estimated: null } });
+  const [flight, ...rest] = boardRows([shifted, tomorrow], now, { date });
+  assert.equal(flight.scheduled.date, date);
+  assert.equal(flight.estimated.date, '2026-11-13');
+  assert.deepEqual(rest, []);
+});
+
+test('a failed window returns an error and a retry can load the full board', async t => {
+  const date = '2026-11-01';
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(`${date}T19:00:00Z`) });
+  const requests = [];
+  let fail = true;
+  t.mock.method(globalThis, 'fetch', async url => {
+    const path = new URL(url).pathname;
+    requests.push(path);
+    if (fail && path.endsWith('2026-11-02T00:00')) {
+      return Response.json({ message: 'upstream diagnostic' }, { status: 429 });
+    }
+    return new Response(null, { status: 204 });
+  });
+  const env = { AERODATABOX_KEY: 'test-secret' };
+  const req = new Request('https://ord-worker.example/board');
+  const first = await worker.fetch(req, env);
+  assert.equal(first.status, 429);
+  assert.deepEqual(await first.json(), { error: 'http-429' });
+  assert.deepEqual(requests, [
+    '/flights/airports/iata/ORD/2026-11-01T00:00/2026-11-01T06:00',
+    '/flights/airports/iata/ORD/2026-11-01T06:00/2026-11-01T12:00',
+    '/flights/airports/iata/ORD/2026-11-01T12:00/2026-11-02T00:00'
+  ]);
+  fail = false;
+  const retry = await worker.fetch(req, env);
+  assert.equal(retry.status, 200);
+  assert.deepEqual((await retry.json()).data, []);
+  assert.equal(requests.length, 6);
+});

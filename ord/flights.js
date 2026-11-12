@@ -1,9 +1,8 @@
 // Flight lookup: turn the flight number a passenger types into a gate on the map.
 // Pure functions, so `npm test` checks them without a browser or an API key.
 //
-// Live data comes from Aviationstack's /v1/flights endpoint through a small Cloudflare Worker
-// (worker/flight-worker.js) that keeps the API key off this public site. With no Worker link set
-// in ord/config.js the searchable board displays clearly labeled sample data.
+// The Cloudflare Worker keeps provider keys off the public site. With no Worker address,
+// the searchable board displays labeled sample data.
 
 // Airline code (two letters, or a letter and a digit) + 1 to 4 digits + an optional letter.
 const FLIGHT = /^([A-Z]{2}|[A-Z]\d|\d[A-Z])(\d{1,4})([A-Z]?)$/;
@@ -16,8 +15,8 @@ export function normalizeFlight(text) {
   return { iata: `${m[1]}${number}`, airline: m[1], number, label: `${m[1]} ${number}` };
 }
 
-// Aviationstack writes departure times as the airport's local clock time. Only the wall-clock part
-// of the string is used, so a "+00:00" suffix cannot shift the time by the Chicago offset.
+// Both feeds supply airport-local clock times. Use the wall-clock part even if a legacy
+// Aviationstack timestamp incorrectly ends with "+00:00".
 const wall = iso => {
   const m = String(iso || '').match(/^(\d{4}-\d\d-\d\d)T(\d\d):(\d\d)/);
   return m ? { date: m[1], hour: Number(m[2]), minute: Number(m[3]), key: `${m[1]}T${m[2]}:${m[3]}` } : null;
@@ -36,6 +35,11 @@ export function clockText(time) {
 
 const STATUS = {
   scheduled: { text: 'Scheduled', tone: 'ok' },
+  checkin: { text: 'Check-in', tone: 'info' },
+  boarding: { text: 'Boarding', tone: 'ok' },
+  'gate-closed': { text: 'Gate closed', tone: 'warn' },
+  delayed: { text: 'Delayed', tone: 'warn' },
+  'cancelled-uncertain': { text: 'Possibly cancelled', tone: 'warn' },
   active: { text: 'Departed', tone: 'warn' },
   landed: { text: 'Landed', tone: 'warn' },
   cancelled: { text: 'Cancelled', tone: 'bad' },
@@ -43,7 +47,7 @@ const STATUS = {
   diverted: { text: 'Diverted', tone: 'bad' }
 };
 
-// One Aviationstack record → the fields this site shows. Missing fields stay empty rather than guessed.
+// One Worker record → the fields this site shows. Missing fields stay empty.
 export function normalizeRecord(item, direction = 'departures') {
   const dep = item?.departure || {}, arr = item?.arrival || {}, code = item?.flight?.codeshared;
   const isArrival = direction === 'arrivals';
@@ -126,6 +130,8 @@ async function fetchSnapshot(url, { fetchImpl = fetch, signal } = {}) {
   if (!Array.isArray(body?.data)) throw new FlightError('invalid-response');
   return {
     data: body.data,
+    date: typeof body.date === 'string' && /^\d{4}-\d\d-\d\d$/.test(body.date) ? body.date : null,
+    source: body.source === 'aerodatabox' ? body.source : null,
     fetchedAt: Number.isFinite(Date.parse(body.fetchedAt)) ? body.fetchedAt : null,
     refreshMinutes: body.refreshMinutes ?? body.cachedFor ?? null
   };
@@ -161,9 +167,9 @@ export function sampleBoard(samples, now = chicagoNow(), { direction = 'departur
 }
 const searchKey = value => String(value || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
 
-// O'Hare flights in time order. Keep codeshares available for flight-number searches.
-export function boardRows(items, now = chicagoNow(), { direction = 'departures', terminal = 'all', query = '', limit = 80 } = {}) {
-  const nowMin = keyMinutes(now), q = searchKey(query);
+// Daily snapshots include all of today's flights. Keep codeshares searchable by flight number.
+export function boardRows(items, now = chicagoNow(), { direction = 'departures', terminal = 'all', query = '', date, limit = date ? Infinity : 80 } = {}) {
+  const nowMin = keyMinutes(now), q = searchKey(normalizeFlight(query)?.iata || query);
   const at = f => keyMinutes((f.estimated || f.scheduled).key);
   const seen = new Set();
   return (items || []).map(item => normalizeRecord(item, direction))
@@ -171,10 +177,16 @@ export function boardRows(items, now = chicagoNow(), { direction = 'departures',
     .filter(f => !f.operatedBy || (q && searchKey(f.iata).includes(q)))
     .filter(f => { if (seen.has(f.iata + f.scheduled.key)) return false; seen.add(f.iata + f.scheduled.key); return true; })
     .map(f => ({ ...f, label: normalizeFlight(f.iata)?.label || f.iata }))
-    .filter(f => at(f) >= nowMin - 15 && at(f) <= nowMin + 1440)
+    .filter(f => date ? f.scheduled.date === date || f.estimated?.date === date : at(f) >= nowMin - 15 && at(f) <= nowMin + 1440)
     .filter(f => terminal === 'all' || f.terminal === terminal)
     .filter(f => !q || [f.iata, f.airline, f.airport.name, f.airport.iata, f.gate].some(value => searchKey(value).includes(q)))
-    .sort((a, b) => at(a) - at(b) || a.iata.localeCompare(b.iata))
+    .sort((a, b) => {
+      if (date) {
+        const earlier = Number(at(a) < nowMin) - Number(at(b) < nowMin);
+        if (earlier) return earlier;
+      }
+      return at(a) - at(b) || a.iata.localeCompare(b.iata);
+    })
     .slice(0, limit);
 }
 export function fetchBoard(apiBase, { direction = 'departures', ...options } = {}) {
@@ -184,7 +196,7 @@ export function fetchBoard(apiBase, { direction = 'departures', ...options } = {
   return fetchSnapshot(url, options);
 }
 
-// Plain-language reasons for each failure the Worker or Aviationstack can return.
+// Plain-language reasons for flight service failures.
 export function errorText(code) {
   const c = String(code || '');
   if (c === 'bad-number' || c === 'invalid-number') return 'That does not look like a flight number. Use the airline code and number from your boarding pass, like UA 1234.';
